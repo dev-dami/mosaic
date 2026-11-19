@@ -14,6 +14,8 @@ export function ApprovalLayer() {
   const hue = useHueStyle();
   const waitingOn = model.waitingOn;
   const open = !!state.confirming;
+  // Still asking, or has the site answered and its sheet is lingering on "Done" / "Denied"?
+  const asking = !!waitingOn && model.writes.some((w) => w.origin === waitingOn.site.site.origin && state.runs[w.key]?.status === "running");
   return (
     <div className={`sheet-layer ${open ? "open" : ""}`} aria-hidden={!open}>
       <div className="sheet-backdrop" />
@@ -32,7 +34,7 @@ export function ApprovalLayer() {
         {waitingOn && (
           <div className="sheet-wait" style={hue(waitingOn.site.site.origin)}>
             <Monogram name={waitingOn.site.site.name} origin={waitingOn.site.site.origin} size="sm" />
-            <span>Mosaic is waiting for your answer on {waitingOn.site.site.name}</span>
+            <span>{asking ? `Mosaic is waiting for your answer on ${waitingOn.site.site.name}` : `${waitingOn.site.site.name} has your answer. This closes on its own.`}</span>
           </div>
         )}
       </div>
