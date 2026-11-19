@@ -45,14 +45,16 @@ export const capAnchor = (key: CapKey) => `cap-${key.replace(/[^a-z0-9]+/gi, "-"
 
 // ── Outcome sentence ──────────────────────────────────────────────────────────
 
-const VERBS = /^(launch|ship|release|publish|announce|cut|prepare)\b/i;
+const VERBS = /^(launch|ship|release|publish|announce|cut|prepare|update|apply|draft|write|schedule|post)\b/i;
+/** Words that name the work, not the project ("Update the docs for v2.1" has no project). */
+const TASK_NOUNS = /\b(docs?|documentation|changelogs?|notes|releases?|announcements?|posts?|updates?)\b/gi;
 
 /** "Launch Lumen v1.0" → { project: "Lumen", version: "v1.0" }. Deterministic, no model. */
 export function parseOutcome(title: string): { project?: string; version?: string } {
   const versionMatch = title.match(/\bv?\d+(?:\.\d+){0,2}(?:-[\w.]+)?\b/);
   const version = versionMatch ? (versionMatch[0].startsWith("v") ? versionMatch[0] : `v${versionMatch[0]}`) : undefined;
   let rest = versionMatch ? title.replace(versionMatch[0], " ") : title;
-  rest = rest.replace(VERBS, " ").replace(/\b(of|for|the)\b/gi, " ").replace(/\s+/g, " ").trim();
+  rest = rest.replace(VERBS, " ").replace(TASK_NOUNS, " ").replace(/\b(of|for|the|a|an|and|then|to)\b/gi, " ").replace(/[,;]/g, " ").replace(/\s+/g, " ").trim();
   return { project: rest || undefined, version };
 }
 

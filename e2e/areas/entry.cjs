@@ -5,9 +5,15 @@ const { origin } = require("./shell.cjs");
 module.exports = {
   /** Connect the site on `port` by URL and wait until its bridge is ready. */
   async connect(page, port) {
-    await page.getByLabel("Site URL").fill(origin(port));
-    await page.getByRole("button", { name: "Connect", exact: true }).click();
+    // The top bar's palette trigger; ⌘K / Ctrl K opens the same palette.
+    await page.getByRole("button", { name: "Search or connect a site" }).click();
+    const input = page.getByLabel("Site URL or search");
+    await input.fill(origin(port));
+    await input.press("Enter");
     await page.locator(`.source.ready[data-origin="${origin(port)}"]`).waitFor();
+    // The palette stays open on "+N capabilities from <host>" until dismissed.
+    await page.keyboard.press("Escape");
+    await page.locator(".palette").waitFor({ state: "detached" });
   },
   /** Type a document property (Project or Version) over the value read from the outcome. */
   async setDocProp(page, label, value) {
