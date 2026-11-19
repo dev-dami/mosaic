@@ -1,12 +1,14 @@
-// The review dock: a floating bar at the bottom of the page that counts the writes waiting for
-// approval, and opens upward into their cards. On phones it is a drawer you can drag down to close.
-// Each card's one button asks its site; the site's own approval sheet is where the person approves.
+// The review dock: the one home of pending writes. A bar on the document column (same left edge,
+// same width) says how many changes wait for approval; it opens into their cards. On wide screens
+// the cards open as a side panel that pushes the document aside instead of covering it; on phones
+// they open as a bottom sheet you can drag down to close. Each card's one button asks its site, and
+// the site's own approval sheet is where the person approves.
 import NumberFlow from "@number-flow/react";
 import { CaretDownIcon, CheckIcon, PaperPlaneTiltIcon, ProhibitIcon } from "@phosphor-icons/react";
 import { domMax, LazyMotion, m, MotionConfig, useDragControls, type PanInfo } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { tinykeys } from "tinykeys";
-import { capAnchor, hostOf, type CapRef } from "../doc";
+import { capAnchor, type CapRef } from "../doc";
 import { Button, Kbd, Monogram, Tooltip, useHueStyle } from "../primitives";
 import { useMosaic } from "../state";
 import { WriteCard } from "./publish";
@@ -28,39 +30,57 @@ export function ReviewDock() {
   );
 }
 
-function useNarrow() {
-  const query = "(max-width: 640px)";
-  const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
+function useMedia(query: string) {
+  const [match, setMatch] = useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
   useEffect(() => {
     const mq = window.matchMedia(query);
-    const on = () => setNarrow(mq.matches);
+    const on = () => setMatch(mq.matches);
+    on();
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
-  }, []);
-  return narrow;
+  }, [query]);
+  return match;
 }
 
-/** Keep the dock centred on the document column (the <main> the runbook renders), whatever the rail's width. */
+/** Is focus in something the person types into? Then ⌘↵ belongs to it, not to the dock. */
+function typing(): boolean {
+  const el = document.activeElement as HTMLElement | null;
+  if (!el) return false;
+  if (el.isContentEditable) return true;
+  if (el.tagName === "TEXTAREA" || el.tagName === "SELECT") return true;
+  if (el.tagName === "INPUT") return !["checkbox", "radio", "button", "submit", "range"].includes((el as HTMLInputElement).type);
+  return false;
+}
+
+/** Keep the bar on the document column: the same left edge and width as the steps (the .doc content box). */
 function useDockFrame(ref: React.RefObject<HTMLDivElement | null>, active: boolean) {
   useLayoutEffect(() => {
     if (!active) return;
-    const main = document.querySelector("main");
+    const doc = document.querySelector<HTMLElement>(".doc");
     const update = () => {
       const el = ref.current;
       if (!el) return;
-      const r = main?.getBoundingClientRect();
-      const left = r ? r.left : 0;
-      const width = r ? r.width : window.innerWidth;
-      el.style.setProperty("--dock-cx", `${left + width / 2}px`);
-      el.style.setProperty("--dock-room", `${width}px`);
+      if (!doc) {
+        el.style.setProperty("--dock-left", "24px");
+        el.style.setProperty("--dock-width", `${window.innerWidth - 48}px`);
+        return;
+      }
+      const r = doc.getBoundingClientRect();
+      const pad = parseFloat(getComputedStyle(doc).paddingLeft) || 0;
+      el.style.setProperty("--dock-left", `${r.left + pad}px`);
+      el.style.setProperty("--dock-width", `${r.width - pad}px`);
     };
     update();
     const ro = new ResizeObserver(update);
-    if (main) ro.observe(main);
+    if (doc) ro.observe(doc);
     window.addEventListener("resize", update);
+    // The layout eases aside when the side panel opens; follow it to the end.
+    const layout = document.querySelector(".layout");
+    layout?.addEventListener("transitionend", update);
     return () => {
       ro.disconnect();
       window.removeEventListener("resize", update);
+      layout?.removeEventListener("transitionend", update);
     };
   }, [active]);
 }
@@ -69,7 +89,8 @@ function Dock() {
   const { state, model, actions } = useMosaic();
   const { open, focus, nonce } = useReviewUi();
   const hue = useHueStyle();
-  const narrow = useNarrow();
+  const narrow = useMedia("(max-width: 640px)");
+  const wide = useMedia("(min-width: 1200px)");
   const dock = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const toggle = useRef<HTMLButtonElement>(null);
@@ -81,16 +102,27 @@ function Dock() {
   const offPlan = allWrites.filter((w) => !plannedKeys.has(w.key));
   const pending = model.pendingWrites;
   const has = allWrites.length > 0;
+  const side = has && open && wide;
   useDockFrame(dock, has);
 
-  // ⌘↵ / Ctrl↵ opens or closes the dock; Esc closes it (unless a site's sheet is up: that is the site's).
+  // Wide screens: the open drawer is a side panel, and the layout makes room for it.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (side) root.dataset.review = "side";
+    else delete root.dataset.review;
+    return () => {
+      delete root.dataset.review;
+    };
+  }, [side]);
+
+  // ⌘↵ / Ctrl↵ opens or closes the dock, unless focus is in a field; Esc closes it (unless a site's sheet is up: that is the site's).
   const latest = useRef({ has, open, confirming: state.confirming });
   latest.current = { has, open, confirming: state.confirming };
   useEffect(
     () =>
       tinykeys(window, {
         "$mod+Enter": (e) => {
-          if (!latest.current.has) return;
+          if (!latest.current.has || typing()) return;
           e.preventDefault();
           toggleReview();
         },
@@ -104,7 +136,7 @@ function Dock() {
     [],
   );
 
-  // Links to a write elsewhere on the page ("Later: publish release") open the dock at that card.
+  // Links to a write elsewhere on the page (a step's "1 change to publish") open the dock at that card.
   const keyById = useRef(new Map<string, CapRef["key"]>());
   keyById.current = new Map(allWrites.map((w) => [capAnchor(w.key), w.key]));
   useEffect(() => {
@@ -119,7 +151,7 @@ function Dock() {
     return () => document.removeEventListener("click", onClick);
   }, []);
 
-  // Bring the asked-for card into view, or move focus into the panel; give focus back on close.
+  // Bring the asked-for card into view; give focus back to the toggle on close.
   const wasOpen = useRef(false);
   useEffect(() => {
     if (open) {
@@ -139,25 +171,26 @@ function Dock() {
     wasOpen.current = false;
   }, [open, nonce]);
 
-  // Fold back to the bar once a write is published (the tile turns green, the receipt lands in the
-  // document), so the dock doesn't sit over the page. "Send all" keeps it open until it finishes.
-  // A denied write keeps it open: its card says what happened and offers to ask again.
+  // Over the page (phones, narrow desktops) the drawer folds back to the bar once a write is
+  // published, so it doesn't sit on the document. The side panel covers nothing, so it stays.
+  // "Send all" keeps it open until it finishes; a denied write keeps it open to offer asking again.
   const doneCount = allWrites.filter((w) => state.runs[w.key]?.status === "done").length;
   const lastDone = useRef(doneCount);
   useEffect(() => {
     if (state.sending) return;
     if (doneCount > lastDone.current) {
       lastDone.current = doneCount;
-      const t = setTimeout(closeReview, 650);
+      if (wide) return;
+      const t = setTimeout(closeReview, 900);
       return () => clearTimeout(t);
     }
     lastDone.current = doneCount;
-  }, [doneCount, state.sending]);
+  }, [doneCount, state.sending, wide]);
 
   if (!has) return null;
 
+  const nameOf = (origin: string) => model.connFor(origin)?.site.site.name ?? origin;
   const waiting = state.confirming ? model.connFor(state.confirming) : undefined;
-  const next = pending.find((w) => writeStatus(state, w) !== "done");
   const denied = pending.find((w) => writeStatus(state, w) === "denied");
   const allDone = pending.length === 0 && planned.length > 0;
   const sendReason = state.sending
@@ -165,9 +198,19 @@ function Dock() {
     : pending.length === 0
       ? "Everything here is published"
       : state.confirming
-        ? `Answer the prompt from ${hostOf(state.confirming)} first`
+        ? `Answer ${nameOf(state.confirming)}'s prompt first`
         : pending.some((w) => !model.readyOf(w.origin))
           ? "A site is still starting its bridge"
+          : null;
+  // One line says how many; a second appears only when it has news.
+  const news = waiting
+    ? `Waiting for your answer on ${waiting.site.site.name}`
+    : denied
+      ? `Denied on ${denied.siteName}. Nothing changed there.`
+      : allDone
+        ? "Each one is in Activity, below the steps."
+        : pending.length === 0
+          ? "These changes aren't part of this plan."
           : null;
 
   const onDragEnd = (_: unknown, info: PanInfo) => {
@@ -179,7 +222,7 @@ function Dock() {
       <m.div className="rv-scrim" initial={false} animate={{ opacity: open && narrow ? 1 : 0 }} style={{ pointerEvents: open && narrow ? "auto" : "none" }} onClick={closeReview} aria-hidden="true" />
       <m.div
         ref={dock}
-        className={`rv-dock ${open ? "open" : ""} ${allDone ? "all-done" : ""}`}
+        className={`rv-dock ${open ? "open" : ""} ${side ? "side" : ""} ${allDone ? "all-done" : ""}`}
         role="region"
         aria-label="Review changes"
         drag={narrow && open ? "y" : false}
@@ -199,7 +242,7 @@ function Dock() {
             open: { height: "auto", opacity: 1, visibility: "visible" },
             closed: { height: 0, opacity: 0, transitionEnd: { visibility: "hidden" } },
           }}
-          transition={{ duration: 0.2, ease: EASE }}
+          transition={{ duration: side ? 0 : 0.2, ease: EASE }}
           inert={!open}
         >
           <div className="rv-handle" onPointerDown={(e) => drag.start(e)} aria-hidden="true">
@@ -210,9 +253,12 @@ function Dock() {
               <h2>Review and publish</h2>
               <p>Each change goes to its own site, and you approve it there. Mosaic can't approve for you.</p>
             </div>
+          </div>
+          <div className="rv-send">
             <Button variant="primary" icon={<PaperPlaneTiltIcon />} onClick={() => void actions.sendAll()} disabledReason={sendReason}>
-              {pending.length > 1 ? `Send all ${pending.length}` : "Send for approval"}
+              {pending.length > 1 ? `Send all ${pending.length} for approval` : "Send for approval"}
             </Button>
+            <span className="hint">Opens each site's prompt in turn.</span>
           </div>
           <div className="rv-list" ref={list}>
             {planned.map((w, i) => (
@@ -223,36 +269,32 @@ function Dock() {
         </m.div>
 
         <div className="rv-bar">
-          <div className={`rv-count ${allDone ? "done" : ""}`} aria-live="polite">
-            {allDone ? <CheckIcon weight="bold" aria-hidden="true" /> : <NumberFlow value={pending.length} className="rv-num" />}
-          </div>
-          <div className="rv-words">
+          <div className="rv-words" aria-live="polite">
             <span className="rv-line">
-              {allDone ? (planned.length === 1 ? "Published" : `All ${planned.length} published`) : pending.length === 0 ? "Nothing to publish" : `${pending.length === 1 ? "Change" : "Changes"} ready to publish`}
+              {allDone ? (
+                <>
+                  <CheckIcon weight="bold" className="rv-done-mark" aria-hidden="true" />
+                  {planned.length === 1 ? "Published" : `All ${planned.length} published`}
+                </>
+              ) : pending.length === 0 ? (
+                "Nothing to approve"
+              ) : (
+                <>
+                  <NumberFlow value={pending.length} className="rv-num" /> {pending.length === 1 ? "change" : "changes"} to approve
+                </>
+              )}
             </span>
-            <span className="rv-sub">
-              {waiting
-                ? `Waiting for your answer on ${hostOf(waiting.site.site.origin)}`
-                : allDone
-                  ? "Receipts are in the document."
-                  : denied
-                    ? `Denied on ${hostOf(denied.origin)}. Nothing changed there.`
-                    : pending.length > 0
-                      ? "You approve each one on its own site."
-                      : "These writes aren't part of this plan."}
-            </span>
+            {news && <span className="rv-sub">{news}</span>}
           </div>
-          <ol className="rv-tiles" aria-label="Writes, in step order">
+          <ol className="rv-tiles" aria-label="Changes, in step order">
             {planned.map((w) => {
               const s = writeStatus(state, w);
-              const isNext = w.key === next?.key;
-              const label = `${w.cap.title} on ${hostOf(w.origin)}: ${STATE_WORD[s]}`;
+              const label = `${w.cap.title} on ${w.siteName}: ${STATE_WORD[s]}`;
               return (
                 <li key={w.key}>
                   <Tooltip content={label}>
-                    <button type="button" className={`rv-tile ${s} ${isNext ? "next" : ""}`} style={hue(w.origin)} onClick={() => openReview(w.key)} aria-label={label}>
+                    <button type="button" className={`rv-tile ${s}`} style={hue(w.origin)} onClick={() => openReview(w.key)} aria-label={label}>
                       <Monogram name={w.siteName} origin={w.origin} size="sm" />
-                      {isNext && <span className="rv-tile-name">{w.cap.title}</span>}
                       <span className="rv-tile-state" aria-hidden="true">
                         {s === "done" ? <CheckIcon weight="bold" /> : s === "denied" || s === "failed" ? <ProhibitIcon weight="bold" /> : null}
                       </span>
@@ -273,7 +315,7 @@ function Dock() {
               side={!open && !narrow ? <Kbd keys={["mod", "enter"]} /> : undefined}
               onClick={toggleReview}
             >
-              {open ? "Hide" : pending.length > 0 ? `Review ${pending.length}` : "Show"}
+              {open ? "Hide" : pending.length > 0 ? "Review" : "Show"}
             </Button>
           </div>
         </div>

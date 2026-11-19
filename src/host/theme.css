@@ -124,8 +124,8 @@
 }
 
 /* Site hue tokens. Any element that sets --h (inline, from the host's hue assignment) gets its own
-   set. Hues come from src/host/hue.ts and stay inside 175-250 and 285-350, clear of red (27),
-   amber (66-92), green (150) and the accent (268). */
+   set. Hues come from src/host/hue.ts and stay inside 190-237 and 299-350, clear of red (27),
+   amber (66-92), green (150) and at least 30 degrees from the accent (268). */
 [style*="--h"] {
   --site-bg: oklch(0.95 0.035 var(--h));
   --site-ink: oklch(0.42 0.11 var(--h));

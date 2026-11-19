@@ -1,19 +1,13 @@
-// Toasts echo each write's answer. They are never the only record: the receipt stays in the
-// document and in the activity log. A toast waits while a site's sheet is showing, so Mosaic never
-// draws over the site's own prompt; so does the one short burst when everything is published.
+// Toasts echo each write's answer, bottom right, above the review bar. They are never the only
+// record: the card in the review drawer becomes the receipt and the activity log keeps it. A toast
+// waits while a site's sheet is showing, so Mosaic never draws over the site's own prompt.
 import { CheckIcon, ProhibitIcon, WarningIcon } from "@phosphor-icons/react";
-import confetti from "canvas-confetti";
-import { formatHex, modeOklch, modeRgb, useMode as registerMode } from "culori/fn";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast, Toaster } from "sonner";
-import { hostOf } from "../doc";
-import { siteHue } from "../hue";
-import { useHueStyle } from "../primitives";
+import { Origin, useHueStyle } from "../primitives";
 import { useMosaic, type Receipt } from "../state";
 import { resultLinks } from "./status";
-
-registerMode(modeRgb);
-registerMode(modeOklch);
+import { useReviewUi } from "./ui";
 
 type Echo = Receipt & { links: { key: string; path: string; href: string }[] };
 
@@ -21,8 +15,16 @@ export function Toasts() {
   const { state, model } = useMosaic();
   const seen = useRef(0);
   const queue = useRef<Echo[]>([]);
-  const hadPending = useRef(false);
-  const burstDue = useRef(false);
+  // Beside the side panel when it is open (wide screens), never on top of it.
+  const { open } = useReviewUi();
+  const [wide, setWide] = useState(() => matchMedia("(min-width: 1200px)").matches);
+  useEffect(() => {
+    const mq = matchMedia("(min-width: 1200px)");
+    const on = () => setWide(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  const right = open && wide ? "calc(var(--review-side) + 16px)" : 16;
 
   // Queue every new write receipt.
   useEffect(() => {
@@ -37,16 +39,6 @@ export function Toasts() {
     }
   }, [state.receipts]);
 
-  // Every planned write published: one short burst, in the sites' own hues.
-  const pending = model.pendingWrites.length;
-  useEffect(() => {
-    if (pending > 0) hadPending.current = true;
-    else if (hadPending.current && model.writes.length > 0) {
-      hadPending.current = false;
-      burstDue.current = true;
-    }
-  }, [pending, model.writes.length]);
-
   // Flush once no site's sheet is up.
   useEffect(() => {
     if (state.confirming) {
@@ -54,30 +46,14 @@ export function Toasts() {
       return;
     }
     for (const echo of queue.current.splice(0)) toast.custom(() => <Echo echo={echo} />, { duration: 5000 });
-    if (burstDue.current) {
-      burstDue.current = false;
-      const origin = document.querySelector(".rv-count")?.getBoundingClientRect();
-      const colors = [...new Set(model.writes.map((w) => state.hues[w.origin] ?? siteHue(w.origin)))].map((h) => formatHex({ mode: "oklch", l: 0.7, c: 0.14, h }) ?? "#888");
-      void confetti({
-        particleCount: 46,
-        spread: 62,
-        startVelocity: 32,
-        gravity: 1.1,
-        ticks: 140,
-        scalar: 0.85,
-        colors,
-        disableForReducedMotion: true,
-        origin: origin ? { x: (origin.left + origin.width / 2) / window.innerWidth, y: origin.top / window.innerHeight } : { x: 0.5, y: 0.9 },
-      });
-    }
   });
 
-  return <Toaster position="top-right" offset={{ top: 60, right: 16 }} mobileOffset={{ top: 56, left: 8, right: 8 }} gap={10} toastOptions={{ unstyled: true }} />;
+  return <Toaster position="bottom-right" offset={{ bottom: open && wide ? 16 : 92, right }} mobileOffset={{ bottom: 84, left: 8, right: 8 }} gap={10} toastOptions={{ unstyled: true }} />;
 }
 
 function Echo({ echo }: { echo: Echo }) {
   const hue = useHueStyle();
-  const host = hostOf(echo.origin);
+  const name = echo.siteName;
   const ok = echo.outcome === "done";
   return (
     <div className={`rv-toast ${echo.outcome}`} style={hue(echo.origin)}>
@@ -85,7 +61,8 @@ function Echo({ echo }: { echo: Echo }) {
         {ok ? <CheckIcon weight="bold" /> : echo.outcome === "denied" ? <ProhibitIcon weight="bold" /> : <WarningIcon weight="bold" />}
       </span>
       <div className="rv-toast-text">
-        <b>{ok ? `Published on ${host}` : echo.outcome === "denied" ? `Denied on ${host}` : `Didn't go through on ${host}`}</b>
+        <b>{ok ? `Published on ${name}` : echo.outcome === "denied" ? `Denied on ${name}` : `Didn't go through on ${name}`}</b>
+        <Origin origin={echo.origin} />
         <span>
           {echo.title}
           {ok ? "" : echo.outcome === "denied" ? ". Nothing changed." : `. ${echo.detail}`}

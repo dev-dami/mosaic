@@ -8,7 +8,9 @@ describe("site hues", () => {
     for (const o of origins) {
       const h = siteHue(o);
       expect(isSafeHue(h)).toBe(true);
-      for (const reserved of [27, 66, 80, 92, 150, 268]) expect(hueDistance(h, reserved)).toBeGreaterThan(12);
+      for (const reserved of [27, 66, 80, 92, 150]) expect(hueDistance(h, reserved)).toBeGreaterThan(12);
+      // The accent (primary buttons, focus) keeps a 30 degree moat.
+      expect(hueDistance(h, 268)).toBeGreaterThanOrEqual(30);
     }
   });
 
@@ -21,10 +23,12 @@ describe("site hues", () => {
     for (let s = 0; s < 40; s++) {
       const taken: number[] = [];
       for (const o of origins.slice(s * 5, s * 5 + 5)) taken.push(siteHue(o, taken));
-      // Three sites always get the full gap; the safe bands are only 140 degrees wide, so five
+      // Three sites always get the full gap; the safe bands are under 100 degrees wide, so five
       // sites share it but stay clearly apart.
       expect(minGap(taken.slice(0, 3))).toBeGreaterThanOrEqual(MIN_SITE_HUE_GAP);
-      expect(minGap(taken)).toBeGreaterThanOrEqual(15);
+      // Up to four sites take the band edges, 47 degrees or more apart.
+      expect(minGap(taken.slice(0, 4))).toBeGreaterThanOrEqual(47);
+      expect(minGap(taken)).toBeGreaterThanOrEqual(24);
     }
   });
 

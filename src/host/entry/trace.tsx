@@ -68,8 +68,8 @@ export function checkRows(t: Trace): CheckRow[] {
         return {
           stage,
           state: state === "failed" ? "failed" : state,
-          title: state === "failed" ? "Mosaic's build changed" : "Mosaic unchanged",
-          detail: t.build ? (t.buildSame ? `Build ${t.build}, same as when this page loaded` : `Build is now ${t.build}, not what this page loaded`) : "Source fingerprint checked again",
+          title: state === "failed" ? "Mosaic's build changed" : stopped ? "Not checked" : "Mosaic unchanged",
+          detail: stopped ? "Skipped, because the connection stopped above" : t.build ? (t.buildSame ? `Build ${t.build}, same as when this page loaded` : `Build is now ${t.build}, not what this page loaded`) : "Source fingerprint checked again",
         };
     }
   });

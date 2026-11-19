@@ -45,7 +45,8 @@ export function ActivityLog() {
               <td>
                 <span className="act-site">
                   <Monogram name={rc.siteName} origin={rc.origin} size="sm" />
-                  <span>{hostOf(rc.origin)}</span>
+                  <span className="act-site-name">{rc.siteName}</span>
+                  <span className="act-site-host">{hostOf(rc.origin)}</span>
                 </span>
               </td>
               <td className="act-result">

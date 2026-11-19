@@ -4,7 +4,7 @@
 // in red with what happened and what to do. Nothing here is faked: every row mirrors a stage the
 // store reported (state.trace).
 import NumberFlow from "@number-flow/react";
-import { ArrowRightIcon, CheckIcon, MagnifyingGlassIcon, PaperPlaneTiltIcon, PencilSimpleIcon, PlugsConnectedIcon, PlusIcon, ProhibitIcon, TextAlignLeftIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, CheckIcon, MagnifyingGlassIcon, PaperPlaneTiltIcon, PencilSimpleIcon, PlugIcon, PlusIcon, ProhibitIcon, TextAlignLeftIcon } from "@phosphor-icons/react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Command } from "cmdk";
 import { MotionConfig, motion } from "motion/react";
@@ -124,7 +124,7 @@ export function Palette() {
           <Command label="Site URL or search" shouldFilter={!urlOrigin && !trace} filter={rank} loop onKeyDown={onKeyDown}>
             <div className="palette-input">
               <span className={`palette-glyph ${urlOrigin ? "url" : ""}`} aria-hidden="true">
-                {urlOrigin ? <PlugsConnectedIcon /> : <MagnifyingGlassIcon />}
+                {urlOrigin ? <PlugIcon /> : <MagnifyingGlassIcon />}
               </span>
               <Command.Input
                 ref={input}
@@ -377,22 +377,23 @@ function ConnectView({ trace, onGo, onReset }: { trace: Trace; onGo: () => void;
   );
 }
 
-/** "+N capabilities from <host>", the number rolling up as the capabilities are dealt in. */
+/** "+N capabilities from <site>", the number rolling up as the capabilities are dealt in. */
 function Gain({ origin }: { origin: string }) {
   const { model } = useMosaic();
   const caps = model.refs.filter((r) => r.origin === origin);
+  const name = model.connFor(origin)?.site.site.name ?? hostOf(origin);
   const [shown, setShown] = useState(0);
   useEffect(() => {
     const t = setTimeout(() => setShown(caps.length), 120);
     return () => clearTimeout(t);
   }, [caps.length]);
   return (
-    <section className="gain" aria-label={`${caps.length} capabilities from ${hostOf(origin)}`}>
+    <section className="gain" aria-label={`${caps.length} capabilities from ${name}`}>
       <h3 className="gain-head">
         <span className="gain-num">
           +<NumberFlow value={shown} />
         </span>{" "}
-        {caps.length === 1 ? "capability" : "capabilities"} from <span className="gain-host">{hostOf(origin)}</span>
+        {caps.length === 1 ? "capability" : "capabilities"} from <span className="gain-name">{name}</span>
       </h3>
       <ul className="gain-caps">
         {caps.map((r, i) => (
@@ -439,7 +440,7 @@ function Socket({ trace }: { trace: Trace }) {
           />
         ))}
       </svg>
-      <span className="socket-core">{refused ? <ProhibitIcon weight="bold" /> : trace.siteName ? monogram(name) : <PlugsConnectedIcon />}</span>
+      <span className="socket-core">{refused ? <ProhibitIcon weight="bold" /> : trace.siteName ? monogram(name) : <PlugIcon />}</span>
       {done && (
         <motion.span className="socket-badge" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 600, damping: 22 }}>
           <CheckIcon weight="bold" />

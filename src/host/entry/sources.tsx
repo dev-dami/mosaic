@@ -13,7 +13,7 @@ import { Button, Disclosure, Kbd, Monogram, Origin, Tag, Tooltip, useHueStyle } 
 import { useMosaic, type Conn } from "../state";
 import { jumpTo } from "./palette";
 import { Checklist } from "./trace";
-import { entryUi, rememberTrace, traceOf } from "./ui";
+import { entryUi, rememberName, rememberTrace, traceOf } from "./ui";
 
 function useNarrow() {
   const q = "(max-width: 860px)";
@@ -35,6 +35,9 @@ export function SourcesRail() {
     if (state.trace) rememberTrace(state.trace);
   }, [state.trace]);
   const conns = model.siteOrder.map((o) => model.connFor(o)!).filter(Boolean);
+  useEffect(() => {
+    for (const c of state.conns) if (c.status === "ready") rememberName(c.site.site.origin, c.site.site.name);
+  }, [state.conns]);
   return (
     <MotionConfig reducedMotion="user">
     <aside className="dock" aria-label="Sites">

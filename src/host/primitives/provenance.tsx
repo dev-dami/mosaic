@@ -1,5 +1,6 @@
 // Host-drawn provenance: the marks that say which site a value or block comes from.
 // Sites never draw these themselves, and the host picks each site's hue (src/host/hue.ts).
+import { FileTextIcon } from "@phosphor-icons/react";
 import type { CSSProperties } from "react";
 import { monogram, originParts } from "../doc";
 import { siteHue } from "../hue";
@@ -57,7 +58,7 @@ export function Token(props: { info: TokenInfo; pending?: boolean; onHover?: (on
       onMouseEnter={() => props.onHover?.(true)}
       onMouseLeave={() => props.onHover?.(false)}
     >
-      {info.origin && info.siteName ? <Monogram name={info.siteName} origin={info.origin} size="sm" /> : <span className="tk-doc">¶</span>}
+      {info.origin && info.siteName ? <Monogram name={info.siteName} origin={info.origin} size="sm" /> : <FileTextIcon className="tk-doc" aria-hidden="true" />}
       <span className="tk-source">{info.source}</span>
       <span className="tk-sep">›</span>
       <span className="tk-label">{info.label}</span>

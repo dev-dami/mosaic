@@ -55,10 +55,15 @@ export function Banner({ tone = "info", icon, children, actions, className, ...r
   );
 }
 
-/** Empty state: a dashed frame, a title that says what to do, one line of help, one row of actions. */
-export function EmptyFrame({ title, children, actions, className }: { title: ReactNode; children?: ReactNode; actions?: ReactNode; className?: string }) {
+/** Empty state: a frame, an optional icon, a title that says what to do, one line of help, one row of actions. */
+export function EmptyFrame({ title, icon, children, actions, className }: { title: ReactNode; icon?: ReactNode; children?: ReactNode; actions?: ReactNode; className?: string }) {
   return (
-    <div className={`empty-frame ${className ?? ""}`}>
+    <div className={`empty-frame ${icon ? "has-icon" : ""} ${className ?? ""}`}>
+      {icon && (
+        <span className="empty-icon" aria-hidden="true">
+          {icon}
+        </span>
+      )}
       <h2 className="empty-title">{title}</h2>
       {children && <div className="empty-body">{children}</div>}
       {actions && <div className="empty-actions">{actions}</div>}

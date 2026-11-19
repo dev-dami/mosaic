@@ -1,6 +1,6 @@
 // The runbook document: one frame holding the outcome header (entry area), one step per site,
-// and whatever follows the steps (review area). The wires are drawn across the whole frame, so a
-// write's inputs in the review area can be joined to the read that feeds them.
+// and whatever follows the steps (the activity log). Wires are drawn across the whole frame, one
+// at a time, while the person points at a data flow (runbook/flow.ts).
 import { domMax, LazyMotion, MotionConfig } from "motion/react";
 import { useRef, type ReactNode } from "react";
 import { useMosaic } from "../state";
@@ -12,7 +12,7 @@ export type RunbookDocumentProps = {
   header?: ReactNode;
   /** Shown instead of the steps when no site is connected. */
   empty?: ReactNode;
-  /** Below the steps: pending writes, activity. Elements here may carry data-flow-dst too. */
+  /** Below the steps: the activity log. */
   footer?: ReactNode;
 };
 
@@ -24,7 +24,7 @@ export function RunbookDocument({ header, empty, footer }: RunbookDocumentProps)
       <MotionConfig reducedMotion="user">
         <main className="doc-scroll">
           <div className="doc" ref={docRef}>
-            <Wires container={docRef} pulse={state.pulse} hot={state.hot} />
+            <Wires container={docRef} />
             {header}
             {state.conns.length === 0 && empty}
             {model.siteOrder.length > 0 && (

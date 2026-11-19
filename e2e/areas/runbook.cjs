@@ -28,8 +28,10 @@ module.exports = {
   waitOutputItem: (block, text) => block.locator(".output li").getByText(text).waitFor(),
   /** Wait until the block's rendered output contains this text. */
   waitOutput: (block, text) => block.locator(".output").getByText(text).waitFor(),
-  /** The hand-drawn wires drawn for bound inputs (desktop widths only). */
+  /** The hand-drawn wires drawn for bound inputs (desktop widths only), while a flow is pointed at. */
   wires: (page) => page.locator("svg.wires .wire"),
+  /** Point at one of the block's output fields (its token in the "feeds" row), which draws its wires. */
+  pointAtOutput: (block, field) => block.locator(`.out-token[data-flow-src$="|${field}"]`).hover(),
   /** The "feeds" link from a block's output token to a later step that takes it. */
   feedTarget: (block, title) => block.locator(".feed-target", { hasText: title }),
 };

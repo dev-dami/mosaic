@@ -2,7 +2,7 @@
 // Version are read from it (and can be typed over); the plan line under it shows which steps the
 // outcome picked, in order, and why. Picking is deterministic keyword matching (plan.ts).
 import NumberFlow from "@number-flow/react";
-import { PlugsConnectedIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon, PlugIcon } from "@phosphor-icons/react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { useEffect, useMemo, useRef } from "react";
 import TextareaAutosize from "react-textarea-autosize";
@@ -13,7 +13,8 @@ import { jumpTo } from "./palette";
 import { analyzeOutcome } from "./plan";
 import { entryUi, useEntryUi } from "./ui";
 
-/** Examples before any site is connected: generic, and each one plans differently. */
+/** Examples before any site is connected: generic, and each one plans differently. Once a site is
+ * connected they go away: the plan line under the outcome is the feedback from then on. */
 const STARTERS = ["Launch Lumen v1.0", "Update the docs for v2.1", "Announce Atlas v3.0"];
 
 export function OutcomeHeader() {
@@ -26,41 +27,39 @@ export function OutcomeHeader() {
     box.current?.select();
   }, [focusOutcome]);
 
-  // Once sites are connected, examples come from what they can do: their writes, by title.
-  const examples = useMemo(() => {
-    if (model.refs.length === 0) return STARTERS;
-    const version = model.docProps.version;
-    const writes = model.refs.filter((r) => r.cap.side_effects === "write").map((r) => (version ? `${r.cap.title} ${version}` : r.cap.title));
-    return [...new Set(writes)].slice(0, 2);
-  }, [model.refs, model.docProps.version]);
-
   return (
     <header className={`outcome ${state.conns.length ? "has-sites" : ""}`}>
       <label htmlFor="outcome" className="outcome-label">
         What do you want to get done?
       </label>
-      <TextareaAutosize
-        id="outcome"
-        ref={box}
-        className="outcome-input"
-        value={state.title}
-        minRows={1}
-        maxRows={4}
-        placeholder="Launch Lumen v1.0"
-        spellCheck={false}
-        onChange={(e) => actions.setTitle(e.target.value.replace(/\n/g, " "))}
-        onKeyDown={(e) => {
-          if (e.key !== "Enter") return;
-          e.preventDefault();
-          if (state.conns.length === 0) entryUi.openPalette();
-          else e.currentTarget.blur();
-        }}
-      />
+      <div className="outcome-field">
+        <TextareaAutosize
+          id="outcome"
+          ref={box}
+          className="outcome-input"
+          value={state.title}
+          minRows={1}
+          maxRows={4}
+          placeholder="What do you want done?"
+          spellCheck={false}
+          onChange={(e) => actions.setTitle(e.target.value.replace(/\n/g, " "))}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            if (state.conns.length === 0) entryUi.openPalette();
+            else e.currentTarget.blur();
+          }}
+        />
+        <span className="outcome-pencil" aria-hidden="true">
+          <PencilSimpleIcon />
+        </span>
+      </div>
       <div className="outcome-meta">
         <PropChip k="project" label="Project" />
         <PropChip k="version" label="Version" />
+        {state.conns.length === 0 && (
         <span className="examples" aria-label="Examples">
-          {examples
+          {STARTERS
             .filter((x) => x !== state.title)
             .map((x) => (
               <button key={x} type="button" className="example" onMouseDown={(e) => e.preventDefault()} onClick={() => actions.setTitle(x)}>
@@ -68,6 +67,7 @@ export function OutcomeHeader() {
               </button>
             ))}
         </span>
+        )}
       </div>
       {state.conns.length > 0 && <PlanLine />}
     </header>
@@ -113,16 +113,24 @@ function PlanLine() {
     <div className="plan" aria-label="Plan">
       <div className="plan-head">
         <span className="plan-count">
-          <NumberFlow value={visible.length} /> of {model.refs.length} capabilities
+          {visible.length === model.refs.length ? (
+            <>
+              All <NumberFlow value={visible.length} /> {visible.length === 1 ? "step" : "steps"}
+            </>
+          ) : (
+            <>
+              <NumberFlow value={visible.length} /> of {model.refs.length} steps
+            </>
+          )}
         </span>
         <span className="plan-why">
           {analysis.mode === "all" ? (
             analysis.terms.length ? (
-              <>Nothing matched, so every step is in.</>
+              <span className="plan-all">Nothing in the outcome matched one step, so every step is in.</span>
             ) : (
-              <>Every step is in. Say what you want done to narrow it.</>
+              <span className="plan-all">Say what you want done to narrow it.</span>
             )
-          ) : (
+          ) : visible.length === model.refs.length ? null : (
             <>
               picked by{" "}
               {words.map((w, i) => (
@@ -149,7 +157,7 @@ function PlanLine() {
           </Tooltip>
         )}
           <button type="button" className="plan-add" onClick={() => entryUi.openPalette()}>
-            <PlugsConnectedIcon /> Add a site <Kbd keys={["mod", "K"]} />
+            <PlugIcon /> Add a site <Kbd keys={["mod", "K"]} />
           </button>
         </span>
       </div>
@@ -176,7 +184,7 @@ function PlanLine() {
                     <span className="plan-n">{model.stepOf.get(o)}</span>
                     <Monogram name={conn.site.site.name} origin={o} size="sm" />
                     <span className="plan-titles">{first.cap.title}</span>
-                    {all.length > 1 && <span className="plan-plus">+{all.length - 1}</span>}
+                    {unnamed && <span className="plan-unnamed">· not named</span>}
                   </button>
                 </Tooltip>
               </motion.li>

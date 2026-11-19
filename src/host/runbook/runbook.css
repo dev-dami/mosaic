@@ -3,25 +3,31 @@
    (monogram, chip, token, block ribbon, wire), status colour only for meaning. */
 
 /* ── Document frame ──────────────────────────────────────────────────────── */
-.doc-scroll { padding: 44px 40px 180px; min-width: 0; }
-.doc { position: relative; max-width: 880px; margin: 0 auto; padding-left: 72px; }
+/* Bottom room: the review bar (about 75px with its ledge and offset) plus breathing space, so nothing ends under it. */
+.doc-scroll { padding: 44px 40px 160px; min-width: 0; }
+/* The left padding is the gutter a wire curves through while you point at a data flow. */
+.doc { position: relative; max-width: 864px; margin: 0 auto; padding-left: 48px; }
 .steps { display: flex; flex-direction: column; gap: 40px; margin-top: 8px; position: relative; z-index: 1; }
 
-/* ── Wires: hand-inked strokes in the gutter ─────────────────────────────── */
-.wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 2; }
-.wire { transition: opacity var(--t-tab) ease; }
-.wire .ink { fill: var(--site-wire); opacity: 0.72; }
-.wire .ink.head { opacity: 0.85; }
-.wire.hot .ink { opacity: 1; }
-.wire .pencil { fill: none; stroke: var(--site-wire); stroke-width: 1.4; stroke-linecap: round; stroke-dasharray: 0.5 5; opacity: 0.8; }
+/* ── Wires: one hand-inked stroke, only while a flow is pointed at ────────── */
+.wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 4; }
+.wire .ink { fill: var(--site-wire); }
+.wire .pencil { fill: none; stroke: var(--site-wire); stroke-width: 1.4; stroke-linecap: round; stroke-dasharray: 0.5 5; }
 .wire-dot { fill: var(--surface); stroke: var(--site-wire); stroke-width: 1.5; }
-.wires.has-hot .wire:not(.hot) { opacity: 0.16; }
+/* Both ends of the flow light up with it. */
+.flow-lit { border-radius: var(--radius); box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--site-line, var(--line-strong)); transition: box-shadow var(--t-fast) ease; }
 
-/* ── Step header: a number key, the title, the site chip ─────────────────── */
+/* ── Step header: a number key, the title, the changes tag, the site chip ──
+   Sticky under the top bar, so the step you are reading stays named while its output scrolls. */
 .step { position: relative; }
-.step-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 14px; align-items: start; margin-bottom: 12px; }
+.step-head {
+  position: sticky; top: var(--sticky-top); z-index: 3;
+  display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 0;
+  background: var(--bg); box-shadow: 0 1px 0 transparent;
+}
+.step-head h2 { flex: 1; min-width: 0; margin: 0; font-size: 1.3125rem; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .step-key {
-  position: relative; display: inline-grid; place-items: center; min-width: 38px; height: 32px; padding: 0 6px; margin-top: 1px;
+  position: relative; display: inline-grid; place-items: center; flex: none; min-width: 38px; height: 32px; padding: 0 6px;
   font: 800 14px/1 var(--font-title); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; color: var(--ink-2);
   background: var(--surface); border: 1px solid var(--line-strong); border-bottom-width: 3px; border-radius: var(--radius);
 }
@@ -30,10 +36,18 @@
 .step-key.done { color: var(--ink); }
 .step-key.error { color: var(--danger); border-color: var(--danger-line); }
 .step-key-badge { position: absolute; top: -6px; right: -6px; width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center; background: var(--success-solid); color: var(--on-solid); box-shadow: 0 0 0 2px var(--bg); }
-.step-titles { min-width: 0; }
-.step-titles h2 { margin: 0; font-size: 1.3125rem; line-height: 1.3; }
-.step-desc { margin: 1px 0 0; color: var(--muted); font-size: 13px; }
-.new-pill { align-self: center; font: 600 11px/1 var(--font-sans); color: var(--site-ink); border: 1px dashed var(--site-line); border-radius: var(--radius); padding: 4px 7px; animation: rise 0.2s var(--ease-out); }
+.step-desc { margin: -6px 0 12px 50px; color: var(--muted); font-size: 13px; }
+.new-pill { flex: none; font: 600 11px/1 var(--font-sans); color: var(--site-ink); border: 1px dashed var(--site-line); border-radius: var(--radius); padding: 4px 7px; animation: rise 0.2s var(--ease-out); }
+/* The site's changes, waiting in the review bar: an outline tag in the site's hue that opens them. */
+.step-pub {
+  flex: none; display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px 0 6px;
+  border: 1px solid var(--site-line); border-radius: var(--radius); color: var(--site-ink);
+  font: 600 12px/1 var(--font-sans); white-space: nowrap; transition: background-color var(--t-fast) ease;
+}
+.step-pub > svg { width: 13px; height: 13px; }
+.step-pub:hover { text-decoration: none; background: var(--site-bg); }
+.step-pub.done { color: var(--muted); border-color: var(--line); }
+.step-pub.done > svg { color: var(--success); }
 
 .site-chip {
   display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 7px 0 5px; margin-top: 1px;
@@ -49,27 +63,7 @@
 .step.fresh .block, .step.fresh .context-strip { animation: rise 0.24s var(--ease-out) both; }
 .step.fresh .block { animation-delay: 60ms; }
 
-/* Writes of this site, shown later in the review bar. */
-.then { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; margin: 10px 0 0 2px; color: var(--muted); font-size: 12.5px; }
-.then > svg { color: var(--faint); flex: none; }
-.then-link { color: var(--ink-2); text-decoration: underline dotted var(--line-strong); text-underline-offset: 3px; }
-.then-link:hover { color: var(--ink); text-decoration-color: currentColor; }
-.then-host { color: var(--faint); }
 .step-hidden { margin: 8px 0 0 2px; font-size: 12px; color: var(--faint); }
-
-/* Context reads: run at once, kept to one quiet line. */
-.context-strip { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
-.context { border: 1px solid var(--line); border-radius: var(--radius); background: var(--sunken-2); overflow: hidden; }
-.context-toggle { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
-.context-toggle:hover:not(:disabled) { background: var(--hover); }
-.context-toggle:disabled { cursor: default; }
-.context-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.context .chev { color: var(--muted); flex: none; transition: rotate var(--t-tab) ease; }
-.context.open .chev { rotate: 90deg; }
-.ctx-title { font-weight: 600; color: var(--ink-2); flex: none; }
-.ctx-sum { color: var(--muted); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.context-out { padding: 0 10px 10px; border-top: 0 !important; overflow: hidden; }
-.context-out > :first-child { margin-top: 2px; }
 
 /* ── A read block ────────────────────────────────────────────────────────── */
 .block {
@@ -85,8 +79,10 @@
 .block-desc { margin: 0; color: var(--muted); font-size: 13px; }
 
 .block-bar { display: flex; align-items: center; gap: 12px; padding: 10px 12px 7px 18px; min-height: 56px; }
-.block-run { flex: none; display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.block-run { flex: none; display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .ran-at { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.run-again { color: var(--muted); }
+.run-again:hover { color: var(--ink); }
 .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin 0.7s linear infinite; flex: none; }
 
 /* The inputs as one sentence of chips. */
@@ -100,7 +96,8 @@
   font: 600 12.5px/1 var(--font-sans); cursor: text; transition: border-color var(--t-fast) ease, background-color var(--t-fast) ease;
 }
 .sn-chip:hover { border-color: var(--line-strong); background: var(--surface); }
-.sn-doc { font: 800 11px var(--font-title); color: var(--faint); }
+.sn-doc-tk { cursor: text; font: inherit; font-size: 12px; }
+.sn-doc-tk:hover { border-color: var(--ink-2); }
 .sn-none { color: var(--faint); }
 .sn-edit { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px; border: 0; background: none; border-radius: var(--radius-sm); color: var(--muted); font: 500 12px var(--font-sans); cursor: pointer; }
 .sn-edit:hover { background: var(--hover); color: var(--ink); }
@@ -283,6 +280,12 @@ textarea.json { font: 12.5px/1.5 var(--font-mono); }
 .dp-cap-title { font-weight: 600; }
 .dp-cap-id { font-size: 11.5px; color: var(--muted); }
 .dp-disclose { display: flex; flex-direction: column; align-items: flex-start; margin-top: 2px; }
+.dp-context { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.dp-ctx { border: 1px solid var(--line); border-radius: var(--radius); background: var(--sunken-2); overflow: hidden; }
+.dp-ctx-head { display: flex; align-items: baseline; gap: 8px; padding: 4px 10px; }
+.dp-ctx-head .label { line-height: 1.6; }
+.dp-ctx-sum { font-size: 12px; color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.details-pop .dp-ctx-out { padding: 8px 10px 10px; background: var(--surface); }
 .dp-pre { margin: 4px 0; width: 100%; font-size: 11.5px; background: var(--sunken-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; max-height: 200px; overflow: auto; color: var(--ink-2); }
 
 /* ── Narrow screens ──────────────────────────────────────────────────────── */
@@ -291,17 +294,25 @@ textarea.json { font: 12.5px/1.5 var(--font-mono); }
 }
 @media (max-width: 860px) {
   .doc-scroll { padding: 28px 16px 160px; }
-  .doc { padding-left: 56px; }
+  .doc { padding-left: 40px; }
 }
 @media (max-width: 700px) {
   .doc { padding-left: 0; }
   .steps { gap: 32px; }
-  .step-head { grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; }
-  .step-head .site-chip { grid-column: 2; justify-self: start; margin-top: 4px; }
+  .step-head { gap: 8px; min-height: 44px; padding: 6px 0; }
+  .step-head h2 { font-size: 1.125rem; }
+  .step-key { min-width: 32px; height: 28px; font-size: 13px; }
   .step-head .new-pill { display: none; }
+  .step-head .site-chip-name, .step-head .site-chip-caret { display: none; }
+  .step-head .site-chip { padding: 0 5px; }
+  .step-pub { padding: 0 6px; }
+  .step-pub-text { display: none; }
+  .step-desc { margin: -2px 0 10px; }
   .block-bar { flex-wrap: wrap; padding: 10px 12px 8px 16px; }
-  .sentence { flex: 1 1 200px; }
+  .sentence { flex: 1 1 160px; }
   .block-run { margin-left: auto; }
+  .run-again .btn-label { display: none; }
+  .run-again { padding: 0 6px; }
   .block-fields, .output { padding-left: 16px; padding-right: 12px; }
   .placeholder { margin-left: 16px; margin-right: 12px; }
   .field-row, .fields.compact .field-row { grid-template-columns: 1fr; gap: 4px; }

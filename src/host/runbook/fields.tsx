@@ -2,13 +2,14 @@
 // property, another step's output, or the same field of a read on the same site).
 // Two views: the full field rows (InputFields, also used by the review area for writes), and the
 // one-line sentence a read block shows until the person edits (InputSentence).
-import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { FileTextIcon, PencilSimpleIcon } from "@phosphor-icons/react";
 import { useMemo } from "react";
 import { compileForm, type Field } from "../../form";
 import { autoBinding, capAnchor, preview, resolve, sameBinding, type Binding, type CapRef } from "../doc";
 import { Token, Tooltip } from "../primitives";
 import { suggestionsFor, useMosaic } from "../state";
 import { Control } from "./controls";
+import { setFlow } from "./flow";
 import { Markdown } from "./output";
 
 export const fieldId = (r: CapRef, key: string) => `f-${capAnchor(r.key)}-${key}`;
@@ -60,7 +61,10 @@ export function FieldRow({ r, field }: { r: CapRef; field: Field }) {
               <Token
                 info={model.tokenInfo(binding)}
                 pending={resolved.state === "pending"}
-                onHover={(on) => actions.setHot(on && srcKey ? srcKey : null)}
+                onHover={(on) => {
+                  actions.setHot(on && srcKey ? srcKey : null);
+                  setFlow(on && binding.kind === "output" ? { src: binding.cap, field: binding.field, dst: r.key } : null);
+                }}
                 onRemove={() => actions.setBinding(r.key, field.key, null)}
                 removeLabel={`Type ${field.label} by hand`}
               />
@@ -124,7 +128,14 @@ export function InputSentence({ r, open, onEdit }: { r: CapRef; open: Set<string
           <span className="sn-item" key={f.key}>
             <span className="sn-label">{shortLabel(f).toLowerCase()}</span>
             <span className="sn-bound" data-flow-dst={dst}>
-              <Token info={model.tokenInfo(binding)} pending={res.state === "pending"} onHover={(on) => actions.setHot(on ? binding.cap : null)} />
+              <Token
+                info={model.tokenInfo(binding)}
+                pending={res.state === "pending"}
+                onHover={(on) => {
+                  actions.setHot(on ? binding.cap : null);
+                  setFlow(on && binding.kind === "output" ? { src: binding.cap, field: binding.field, dst: r.key } : null);
+                }}
+              />
             </span>
           </span>
         );
@@ -138,20 +149,23 @@ export function InputSentence({ r, open, onEdit }: { r: CapRef; open: Set<string
       else if (f.kind === "datetime") shown = raw ? String(raw).replace("T", " ") : "now";
       else shown = String(raw);
       if (!shown) return null;
-      const chip = (
-        <button type="button" className={`sn-chip ${binding ? "from-doc" : ""}`} onClick={() => onEdit(f.key)} aria-label={`${f.label}: ${shown}. Edit`}>
-          {binding && (
-            <span className="sn-doc" aria-hidden="true">
-              ¶
-            </span>
-          )}
+      // A value read from the outcome looks like every other source token: where it comes from, then the value.
+      const chip = binding ? (
+        <button type="button" className="token doc-tk sn-doc-tk" onClick={() => onEdit(f.key)} aria-label={`${f.label}: ${shown}, from the outcome. Edit`}>
+          <FileTextIcon className="tk-doc" aria-hidden="true" />
+          <span className="tk-source">Outcome</span>
+          <span className="tk-sep">›</span>
+          <span className="tk-label">{preview(shown, 28)}</span>
+        </button>
+      ) : (
+        <button type="button" className="sn-chip" onClick={() => onEdit(f.key)} aria-label={`${f.label}: ${shown}. Edit`}>
           {preview(shown, 36)}
         </button>
       );
       return (
         <span className="sn-item" key={f.key}>
           <span className="sn-label">{shortLabel(f).toLowerCase()}</span>
-          {binding ? <Tooltip content={`From the outcome: ${model.tokenInfo(binding).label}`}>{chip}</Tooltip> : chip}
+          {binding ? <Tooltip content={`${model.tokenInfo(binding).label}, read from the outcome. Click to type over it.`}>{chip}</Tooltip> : chip}
         </span>
       );
     })

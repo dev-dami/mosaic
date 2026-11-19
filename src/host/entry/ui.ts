@@ -64,3 +64,29 @@ export function asOrigin(text: string): string | null {
     return null;
   }
 }
+
+/**
+ * The name each origin last reported in this browser, so a suggestion can say "Tagforge" instead of
+ * only its address. A per-viewer convenience: it may be empty (private window, blocked storage) and
+ * the origin is always shown beside it.
+ */
+const NAMES_KEY = "mosaic-site-names";
+function readNames(): Record<string, string> {
+  try {
+    const v = JSON.parse(localStorage.getItem(NAMES_KEY) ?? "{}");
+    return v && typeof v === "object" ? (v as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+export function knownName(origin: string): string | undefined {
+  const n = readNames()[origin];
+  return typeof n === "string" && n.trim() ? n.slice(0, 40) : undefined;
+}
+export function rememberName(origin: string, name: string) {
+  try {
+    const names = readNames();
+    if (names[origin] === name) return;
+    localStorage.setItem(NAMES_KEY, JSON.stringify({ ...names, [origin]: name }));
+  } catch {}
+}

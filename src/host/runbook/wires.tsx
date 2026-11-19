@@ -1,12 +1,15 @@
-// Data-flow wires: hand-inked strokes in the left gutter, from the output a value comes from to the
-// input it fills. Measured from the DOM: an element with data-flow-dst="<capKey>|<field>" is joined
-// to the element with the matching data-flow-src, or to its block's data-flow-anchor until that
-// output exists (drawn as a dotted pencil line). Below 640px there are no wires: tokens and the
-// "feeds" row carry the flow instead.
+// Data-flow wires, drawn on demand: while the person points at an output token, a "feeds" link or
+// an input's source token (runbook/flow.ts), one hand-inked stroke joins that output to the input
+// it fills, out through the left gutter. Nothing is drawn otherwise; the "feeds" row and the
+// provenance tokens carry the flow at rest. Measured from the DOM: an element with
+// data-flow-dst="<capKey>|<field>" is joined to the element with the matching data-flow-src, or to
+// its block's data-flow-anchor until that output exists (drawn as a dotted pencil line).
+// Below 640px there are no wires.
 import * as m from "motion/react-m";
 import { getStroke } from "perfect-freehand";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
-import type { CapKey } from "../doc";
+import { capAnchor, type CapKey } from "../doc";
+import { useFlow } from "./flow";
 
 type Pt = [number, number];
 type Wire = { id: string; src: CapKey; hue: number; pending: boolean; ink: string; center: string; head: string; start: Pt };
@@ -48,31 +51,35 @@ function hueOfEl(el: Element): number {
   return Number(getComputedStyle(holder).getPropertyValue("--h")) || 0;
 }
 
-export function Wires({ container, pulse, hot }: { container: RefObject<HTMLDivElement | null>; pulse: { cap: CapKey; at: number } | null; hot: CapKey | null }) {
+export function Wires({ container }: { container: RefObject<HTMLDivElement | null> }) {
+  const flow = useFlow();
   const [wires, setWires] = useState<Wire[]>([]);
-  const last = useRef("");
+  const lit = useRef<HTMLElement[]>([]);
   const measure = useCallback(() => {
+    lit.current.forEach((el) => el.classList.remove("flow-lit"));
+    lit.current = [];
     const box = container.current;
-    if (!box || box.clientWidth < MIN_WIDTH) {
-      if (last.current !== "[]") setWires([]);
-      last.current = "[]";
+    if (!box || !flow || box.clientWidth < MIN_WIDTH) {
+      setWires([]);
       return;
     }
+    const ref = `${flow.src}|${flow.field}`;
     const b = box.getBoundingClientRect();
-    const lanes = new Map<string, number>();
+    const src = box.querySelector<HTMLElement>(`[data-flow-src="${CSS.escape(ref)}"]`);
+    const anchor = src ?? box.querySelector<HTMLElement>(`[data-flow-anchor="${CSS.escape(flow.src)}"]`);
+    if (!anchor) {
+      setWires([]);
+      return;
+    }
+    const srcCard = anchor.closest<HTMLElement>(".cap") ?? anchor;
     const out: Wire[] = [];
-    box.querySelectorAll<HTMLElement>("[data-flow-dst]").forEach((dst) => {
+    box.querySelectorAll<HTMLElement>(`[data-flow-dst="${CSS.escape(ref)}"]`).forEach((dst) => {
       if (dst.getClientRects().length === 0) return;
-      const ref = dst.dataset.flowDst!;
-      const [cap] = ref.split("|");
-      const src = box.querySelector<HTMLElement>(`[data-flow-src="${CSS.escape(ref)}"]`);
-      const anchor = src ?? box.querySelector<HTMLElement>(`[data-flow-anchor="${CSS.escape(cap!)}"]`);
-      if (!anchor) return;
-      const srcCard = anchor.closest<HTMLElement>(".cap") ?? anchor;
       const dstCard = dst.closest<HTMLElement>(".cap") ?? dst;
       if (srcCard === dstCard) return;
-      if (!lanes.has(ref)) lanes.set(ref, lanes.size);
-      const lane = lanes.get(ref)!;
+      if (flow.dst && dstCard.id !== capAnchor(flow.dst)) return;
+      dst.classList.add("flow-lit");
+      lit.current.push(dst);
       const s = anchor.getBoundingClientRect();
       const sc = srcCard.getBoundingClientRect();
       const t = dst.getBoundingClientRect();
@@ -80,7 +87,7 @@ export function Wires({ container, pulse, hot }: { container: RefObject<HTMLDivE
       const p0: Pt = [sc.left - b.left - 3, (src ? s.top + s.height / 2 : s.top + 22) - b.top];
       const p1: Pt = [tc.left - b.left - 5, t.top + Math.min(t.height / 2, 12) - b.top];
       const w = seed(ref + out.length);
-      const reach = Math.min(Math.max(p0[0], p1[0]) - 6, 34 + lane * 9 + Math.min(16, Math.abs(p1[1] - p0[1]) / 60));
+      const reach = Math.min(Math.max(p0[0], p1[0]) - 6, 30 + out.length * 7 + Math.min(14, Math.abs(p1[1] - p0[1]) / 60));
       const c0: Pt = [p0[0] - reach * (0.9 + w * 0.2), p0[1] + (p1[1] - p0[1]) * (0.08 + w * 0.05)];
       const c1: Pt = [p1[0] - reach * (1.05 - w * 0.15), p1[1] - (p1[1] - p0[1]) * (0.1 + w * 0.04)];
       const steps = Math.max(12, Math.round(Math.abs(p1[1] - p0[1]) / 14));
@@ -96,49 +103,35 @@ export function Wires({ container, pulse, hot }: { container: RefObject<HTMLDivE
         [ex, ey],
       ];
       const head = [arm(0.55), arm(-0.55)].map((a) => outline(getStroke(a, { size: 2.4, thinning: 0.3, simulatePressure: false, last: true }))).join(" ");
-      out.push({ id: `${ref}->${dstCard.id || out.length}`, src: cap!, hue: hueOfEl(srcCard), pending: !src, ink, center, head, start: p0 });
+      out.push({ id: `${ref}->${dstCard.id || out.length}`, src: flow.src, hue: hueOfEl(srcCard), pending: !src, ink, center, head, start: p0 });
     });
-    const key = JSON.stringify(out);
-    if (key !== last.current) {
-      last.current = key;
-      setWires(out);
+    if (src && out.length) {
+      src.classList.add("flow-lit");
+      lit.current.push(src);
     }
-  }, [container]);
+    setWires(out);
+  }, [container, flow]);
 
   useLayoutEffect(() => {
     measure();
-    // Steps may still be moving (layout animation, entrance); measure again once they settle.
-    const t1 = setTimeout(measure, 260);
-    const t2 = setTimeout(measure, 560);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  });
+  }, [measure]);
   useEffect(() => {
-    const box = container.current;
-    if (!box) return;
-    const ro = new ResizeObserver(() => measure());
-    ro.observe(box);
-    box.querySelectorAll(".cap").forEach((el) => ro.observe(el));
+    if (!flow) return;
     window.addEventListener("resize", measure);
-    document.fonts?.ready.then(measure).catch(() => {});
     return () => {
-      ro.disconnect();
       window.removeEventListener("resize", measure);
+      lit.current.forEach((el) => el.classList.remove("flow-lit"));
+      lit.current = [];
     };
-  });
+  }, [flow, measure]);
 
-  const now = Date.now();
   return (
-    <svg className={`wires ${hot ? "has-hot" : ""}`} aria-hidden="true">
+    <svg className="wires" aria-hidden="true">
       {wires.map((w) => {
-        const live = !!pulse && pulse.cap === w.src && now - pulse.at < 1500;
-        const cls = `wire ${w.pending ? "pending" : "inked"} ${hot === w.src ? "hot" : ""}`;
         const style = { "--h": String(w.hue) } as CSSProperties;
         if (w.pending) {
           return (
-            <g key={w.id} className={cls} style={style}>
+            <g key={w.id} className="wire pending" style={style}>
               <path d={w.center} className="pencil" />
               <circle cx={w.start[0]} cy={w.start[1]} r="2" className="wire-dot" />
             </g>
@@ -146,13 +139,11 @@ export function Wires({ container, pulse, hot }: { container: RefObject<HTMLDivE
         }
         const maskId = `wm-${seed(w.id).toString(36).slice(2)}-${w.id.length}`;
         return (
-          <g key={w.id + (live ? pulse!.at : "")} className={cls} style={style}>
-            {live && (
-              <mask id={maskId} maskUnits="userSpaceOnUse">
-                <m.path d={w.center} fill="none" stroke="#fff" strokeWidth={14} strokeLinecap="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.7, ease: [0.2, 0.8, 0.2, 1] }} />
-              </mask>
-            )}
-            <g mask={live ? `url(#${maskId})` : undefined}>
+          <g key={w.id} className="wire inked" style={style}>
+            <mask id={maskId} maskUnits="userSpaceOnUse">
+              <m.path d={w.center} fill="none" stroke="#fff" strokeWidth={16} strokeLinecap="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.32, ease: [0.2, 0.8, 0.2, 1] }} />
+            </mask>
+            <g mask={`url(#${maskId})`}>
               <path d={w.ink} className="ink" />
               <path d={w.head} className="ink head" />
             </g>

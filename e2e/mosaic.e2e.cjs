@@ -136,8 +136,9 @@ async function main() {
   await buildSame(page).waitFor();
 
   // 11. The flow is visible without reading bindings: the changelog's output says which later step
-  //     takes it, and a wire joins that output to the inputs it fills.
+  //     takes it, and a wire joins that output to the inputs it fills (drawn while you point at it).
   await runbook.feedTarget(draft, "Draft announcement").waitFor();
+  await runbook.pointAtOutput(draft, "notes");
   await page.waitForFunction(() => document.querySelectorAll("svg.wires .wire.inked").length >= 2);
   assert.ok((await runbook.wires(page).count()) >= 2, "bound inputs are joined to their source by wires");
 

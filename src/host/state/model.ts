@@ -95,7 +95,7 @@ export function deriveModel(state: State): Model {
   const pendingWrites = writes.filter((w) => runs[w.key]?.status !== "done");
 
   const tokenInfo = (b: Binding): TokenInfo => {
-    if (b.kind === "prop") return { source: "Document", label: b.key[0]!.toUpperCase() + b.key.slice(1) };
+    if (b.kind === "prop") return { source: "Outcome", label: b.key[0]!.toUpperCase() + b.key.slice(1) };
     const src = refMap.get(b.cap);
     if (!src) return { source: "Missing", label: b.field };
     if (b.kind === "mirror") return { source: src.cap.title, label: "same as preview", origin: src.origin, siteName: src.siteName };

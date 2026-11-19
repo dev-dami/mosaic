@@ -34,7 +34,10 @@
       }
       /* Each site's own type and shape. */
       :root[data-font="serif"] { --title-font: "Newsreader", Georgia, serif; --radius: 3px; --radius-lg: 4px; }
-      :root[data-font="mono"] { --font: "Geist Mono", ui-monospace, monospace; --title-font: var(--font); --radius: 4px; --radius-lg: 6px; }
+      /* A mono site keeps mono where it carries meaning (its name, the title, labels, values, the origin)
+         and sets prose in a sans, so the sentences that explain the change stay easy to read. */
+      :root[data-font="mono"] { --title-font: var(--mono); --radius: 4px; --radius-lg: 6px; }
+      :root[data-font="mono"] .kicker, :root[data-font="mono"] dt, :root[data-font="mono"] dd, :root[data-font="mono"] .since-key, :root[data-font="mono"] .tagline { font-family: var(--mono); }
       :root[data-font="rounded"] { --font: "Nunito", ui-rounded, system-ui, sans-serif; --title-font: var(--font); --radius: 14px; --radius-lg: 18px; --bg: #fff8f4; }
 
       * { box-sizing: border-box; }
@@ -132,9 +135,10 @@
       /* The short pause before Approve works is visible: the button starts flat and grey, fills with the
          site's colour from the left, then rises onto its ledge when it can be pressed. The timing is
          bridge.ts's (it sets and clears `disabled`); this only draws it. */
-      button.approve:disabled { cursor: wait; translate: 0 var(--depth); box-shadow: none; background: var(--card); color: var(--muted); border-color: var(--line-strong); }
-      button.approve .fill { position: absolute; inset: 0; background: var(--accent); opacity: 0; transform-origin: left; transform: scaleX(0); }
-      button.approve:disabled .fill { opacity: 0.32; animation: unlock 700ms linear forwards; }
+      button.approve:disabled { cursor: wait; translate: 0 var(--depth); box-shadow: none; background: var(--card); color: var(--ink-2); border-color: var(--line-strong); }
+      button.approve .fill { position: absolute; inset: 0; background: var(--accent-soft); border-right: 2px solid var(--accent); opacity: 0; transform-origin: left; transform: scaleX(0); }
+      button.approve:disabled .fill { opacity: 1; animation: unlock 700ms linear forwards; }
+      button.approve:disabled .label::after { content: " · unlocking"; font-weight: 600; color: var(--muted); }
       button.approve:not(:disabled) { animation: ready 180ms ease-out; }
       @keyframes unlock { to { transform: scaleX(1); } }
       @keyframes ready { from { translate: 0 var(--depth); box-shadow: none; } }

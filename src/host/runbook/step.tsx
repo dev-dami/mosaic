@@ -1,21 +1,23 @@
-// A step: one site's part of the runbook. A header (number key, title, site chip with details),
-// the site's context reads as one quiet strip, each read that takes input as a block, and a line
-// pointing to the site's writes (which the review area shows).
+// A step: one site's part of the runbook. A sticky header (number key, title, a tag counting the
+// site's changes waiting in the review bar, the site chip), then each read that takes input as a
+// block. Reads that need no input are context: they run on their own and show in the site chip's
+// details. Writes live only in the review bar and drawer; the header tag links there.
 //
 // A read block puts the inputs in one sentence of chips and the Run button on the same line. Only
 // the fields that still need the person open as rows; "Edit" opens all of them. Once it runs, the
 // output is the content of the block, and the "feeds" row says which later steps take it.
-import { ArrowBendDownRightIcon, ArrowRightIcon, CaretRightIcon, CheckIcon, PlayIcon, WarningIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, ArrowRightIcon, CheckIcon, PaperPlaneTiltIcon, PlayIcon, WarningIcon } from "@phosphor-icons/react";
 import { AnimatePresence } from "motion/react";
 import * as m from "motion/react-m";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { compileForm } from "../../form";
-import { capAnchor, hostOf, outputFields, type CapRef } from "../doc";
+import { capAnchor, outputFields, type CapRef } from "../doc";
 import { Banner, Button, Monogram, useHueStyle } from "../primitives";
-import { hasInputs, useMosaic, type Run } from "../state";
+import { hasInputs, useMosaic } from "../state";
 import { SiteDetails } from "./details";
 import { fieldId, InputFields, InputSentence, needsPerson } from "./fields";
-import { OutputView, summarize } from "./output";
+import { flowHandlers } from "./flow";
+import { OutputView } from "./output";
 
 const two = (n: number) => String(n).padStart(2, "0");
 
@@ -36,6 +38,7 @@ export function Step({ origin, number }: { origin: string; number: number }) {
   const states = reads.map((r) => state.runs[r.key]?.status ?? "idle");
   const status: StepStatus = states.includes("running") ? "running" : states.includes("error") ? "error" : states.length && states.every((s) => s === "done") ? "done" : "idle";
   const name = conn.site.site.name;
+  const pendingWrites = writes.filter((w) => state.runs[w.key]?.status !== "done");
   return (
     <m.section
       layout="position"
@@ -54,46 +57,39 @@ export function Step({ origin, number }: { origin: string; number: number }) {
             </span>
           )}
         </span>
-        <div className="step-titles">
-          <h2 id={`step-${number}`}>{lead?.cap.title ?? name}</h2>
-          {lead && <p className="step-desc">{lead.cap.description}</p>}
-        </div>
+        <h2 id={`step-${number}`}>{lead?.cap.title ?? name}</h2>
         {fresh && <span className="new-pill">New</span>}
-        <SiteDetails origin={origin} name={name} refs={all} />
+        {writes.length > 0 && (
+          <a href={`#${capAnchor((pendingWrites[0] ?? writes[0]!).key)}`} className={`step-pub ${pendingWrites.length ? "" : "done"}`} title={`In the review bar: ${writes.map((w) => w.cap.title).join(", ")}`}>
+            {pendingWrites.length ? <PaperPlaneTiltIcon aria-hidden="true" /> : <CheckIcon weight="bold" aria-hidden="true" />}
+            {pendingWrites.length ? (
+              <>
+                {pendingWrites.length}
+                <span className="step-pub-text"> {pendingWrites.length === 1 ? "change" : "changes"} to publish</span>
+              </>
+            ) : (
+              <span className="step-pub-text">{writes.length === 1 ? "Published" : "All published"}</span>
+            )}
+          </a>
+        )}
+        <SiteDetails origin={origin} name={name} refs={all} context={context} />
       </header>
+      {lead && <p className="step-desc">{lead.cap.description}</p>}
 
       {conn.status === "failed" && (
         <Banner tone="danger" icon={<WarningIcon />} className="step-banner">
-          {hostOf(origin)} refused Mosaic: {conn.failure}
+          {name} refused Mosaic: {conn.failure}
         </Banner>
       )}
 
-      {context.length > 0 && (
-        <div className="context-strip">
-          {context.map((r) => (
-            <ContextLine key={r.key} r={r} run={state.runs[r.key]} />
-          ))}
-        </div>
-      )}
+      {/* Context reads show in the site chip's details; each keeps its one element here. */}
+      {context.map((r) => (
+        <span key={r.key} hidden className="cap cap--context" data-capability={r.cap.id} data-origin={r.origin} id={capAnchor(r.key)} />
+      ))}
       {reads.map((r, i) => (
         <ReadBlock key={r.key} r={r} showTitle={i > 0} />
       ))}
-      {reads.length === 0 && writes.length > 0 && <p className="step-note">{name} only offers changes. They wait in the review bar until you approve them on {hostOf(origin)}.</p>}
-      {writes.length > 0 && (
-        <p className="then">
-          <ArrowBendDownRightIcon size={14} aria-hidden="true" />
-          <span>Later:</span>
-          {writes.map((w, i) => (
-            <span key={w.key}>
-              <a href={`#${capAnchor(w.key)}`} className="then-link">
-                {w.cap.title.toLowerCase()}
-              </a>
-              {i < writes.length - 1 ? " and " : ""}
-            </span>
-          ))}
-          <span className="then-host">after you approve on {hostOf(origin)}</span>
-        </p>
-      )}
+      {reads.length === 0 && writes.length > 0 && <p className="step-note">{name} only offers changes. They wait in the review bar until you approve them on {name}'s own prompt.</p>}
       {hiddenReads.length > 0 && (
         <p className="step-hidden">
           Not needed for this outcome:{" "}
@@ -109,35 +105,12 @@ export function Step({ origin, number }: { origin: string; number: number }) {
   );
 }
 
-/** A read that needs no input: run at once, kept to one line, expandable. */
-function ContextLine({ r, run }: { r: CapRef; run?: Run }) {
-  const [open, setOpen] = useState(false);
-  const done = run?.status === "done";
-  return (
-    <div className={`context cap ${open ? "open" : ""}`} data-capability={r.cap.id} data-origin={r.origin} id={capAnchor(r.key)}>
-      <button type="button" className="context-toggle" onClick={() => setOpen((o) => !o)} aria-expanded={open} disabled={!done}>
-        <CaretRightIcon size={12} className="chev" aria-hidden="true" />
-        <span className="ctx-title">{r.cap.title}</span>
-        <span className="ctx-sum">{done ? summarize(run.output) : run?.status === "error" ? run.message : run?.status === "running" ? "Reading…" : "Not read yet"}</span>
-      </button>
-      <AnimatePresence initial={false}>
-        {open && done && (
-          <m.div className="output context-out" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}>
-            <OutputView value={run.output} origin={r.origin} />
-          </m.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
 /** A read that takes input: a sentence of inputs and Run, the fields that need the person, then the output. */
 function ReadBlock({ r, showTitle }: { r: CapRef; showTitle: boolean }) {
   const { state, model, actions } = useMosaic();
   const fields = useMemo(() => compileForm(r.cap.input_schema), [r.cap]);
   const run = state.runs[r.key] ?? { status: "idle" };
   const ready = model.readyOf(r.origin);
-  const host = hostOf(r.origin);
   const [editing, setEditing] = useState(false);
   const [focusField, setFocusField] = useState<string | null>(null);
   const blockRef = useRef<HTMLElement>(null);
@@ -167,7 +140,7 @@ function ReadBlock({ r, showTitle }: { r: CapRef; showTitle: boolean }) {
     setFocusField(null);
   }, [focusField, r]);
 
-  const reason = !ready ? `Waiting for ${host} to answer` : run.status === "running" ? "Running now" : null;
+  const reason = !ready ? `Waiting for ${r.siteName} to answer` : run.status === "running" ? "Running now" : null;
   const go = () => {
     if (!reason) void actions.run(r);
   };
@@ -208,17 +181,24 @@ function ReadBlock({ r, showTitle }: { r: CapRef; showTitle: boolean }) {
           }}
         />
         <div className="block-run">
-          {done && <span className="ran-at">Ran {run.at.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>}
-          <Button
-            variant={isNext && !done ? "primary" : "secondary"}
-            size={done ? "sm" : "md"}
-            icon={run.status === "running" ? <span className="spinner" aria-hidden="true" /> : <PlayIcon weight="fill" />}
-            onClick={go}
-            disabledReason={reason}
-            aria-label={done ? `Run ${r.cap.title} again` : `Run ${r.cap.title}`}
-          >
-            {run.status === "running" ? "Running" : done ? "Run again" : "Run"}
-          </Button>
+          {done ? (
+            <>
+              <span className="ran-at">Ran {run.at.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
+              <Button variant="tertiary" size="xs" className="run-again" icon={<ArrowClockwiseIcon />} onClick={go} disabledReason={reason} aria-label={`Run ${r.cap.title} again`}>
+                Run again
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant={isNext ? "primary" : "secondary"}
+              icon={run.status === "running" ? <span className="spinner" aria-hidden="true" /> : <PlayIcon weight="fill" />}
+              onClick={go}
+              disabledReason={reason}
+              aria-label={`Run ${r.cap.title}`}
+            >
+              {run.status === "running" ? "Running" : "Run"}
+            </Button>
+          )}
         </div>
       </div>
       <AnimatePresence initial={false}>
@@ -258,7 +238,7 @@ function Placeholder({ r, running, slim }: { r: CapRef; running: boolean; slim: 
   return (
     <div className={`placeholder ${running ? "running" : ""} ${slim ? "slim" : ""}`}>
       <span>{running ? `Reading from ${r.siteName}…` : outs.length ? `Run to see ${outs.join(", ")}.` : "Run to see the result."}</span>
-      <span className="ph-safe">Read only. Nothing changes on {hostOf(r.origin)}.</span>
+      <span className="ph-safe">Read only. Nothing changes on {r.siteName}.</span>
     </div>
   );
 }
@@ -275,7 +255,7 @@ function Feeds({ r, output }: { r: CapRef; output: unknown }) {
       return b?.kind === "output" && b.cap === r.key && b.field === field;
     }));
   const token = (f: string, used: boolean) => (
-    <span key={f} className={`out-token ${used ? "used" : ""}`} data-flow-src={`${r.key}|${f}`} style={hue(r.origin)} onMouseEnter={() => actions.setHot(r.key)} onMouseLeave={() => actions.setHot(null)}>
+    <span key={f} className={`out-token ${used ? "used" : ""}`} data-flow-src={`${r.key}|${f}`} style={hue(r.origin)} tabIndex={used ? 0 : undefined} {...flowHandlers({ src: r.key, field: f }, (on) => actions.setHot(on ? r.key : null))}>
       <Monogram name={r.siteName} origin={r.origin} size="sm" />
       {f}
     </span>
@@ -292,7 +272,7 @@ function Feeds({ r, output }: { r: CapRef; output: unknown }) {
           {ts.map((t) => {
             const n = model.stepOf.get(t.origin);
             return (
-              <a key={t.key} className="feed-target" href={`#${capAnchor(t.key)}`} style={hue(t.origin)}>
+              <a key={t.key} className="feed-target" href={`#${capAnchor(t.key)}`} style={hue(t.origin)} {...flowHandlers({ src: r.key, field: f, dst: t.key })}>
                 {t.cap.side_effects === "read" && n ? <span className="ft-num">{two(n)}</span> : <Monogram name={t.siteName} origin={t.origin} size="sm" />}
                 {t.cap.title}
               </a>
