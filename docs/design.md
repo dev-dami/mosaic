@@ -15,10 +15,13 @@ The current runbook asks the person to read too much before they can act. The ne
 
 1. **Say the outcome.** The first thing on the page is one input: "What do you want done?" Typing
    "Launch Lumen v1.0" sets the title, Project and Version, and picks and orders the steps
-   (`src/host/entry/plan.ts`, deterministic keyword and name matching, no model).
+   (`src/host/entry/plan.ts`, deterministic keyword and name matching, no model). The plan narrows
+   inside the sites the outcome names; a site it names nothing on keeps all its steps, after the
+   named ones, because the person connected it.
 2. **Connect what it needs.** ⌘K (Ctrl K) opens the palette. Paste a URL; the palette runs the staged
    checks in place and ends with "+3 capabilities from tagforge.example". A refused host ends in red
-   with the reason. The empty runbook offers the same action as a primary button.
+   with the reason. The empty runbook offers the same action as a primary button. A site Mosaic has
+   never seen adds its steps the moment it connects.
 3. **Run the steps.** Each step shows its output as content. Inputs that are already bound show as one
    line of tokens; the form opens only when the person edits. Wires show where each value came from.
 4. **Publish.** Every write waits in one sticky review bar at the bottom: "3 writes ready to publish".
@@ -106,11 +109,11 @@ Area components to build (each owned by one area, see section 8):
 | Command palette | B | `cmdk` dialog on ⌘K. Groups: Connect (a URL typed becomes "Connect <origin>"; `shouldFilter={false}` for URLs), Suggested sites, Steps (jump to), Actions (theme, review). Connecting shows the four stages inline, then "+N capabilities from <host>" with `@number-flow/react`. A refused host is a red row with the reason and no retry spinner. |
 | Sources list | B | Slim list or popover: monogram, name, status dot, capabilities on hover; the hue picker (`@radix-ui/react-slider` over a track with the reserved bands hatched) lives in the source's popover. |
 | Step block | A | Number, title, provenance pill. Output first as content; bound inputs as one line of tokens; Edit opens the fields. One primary button per step. |
-| Wires | A | Hand-drawn strokes (`perfect-freehand`, curve from `perfect-arrows`) from an output token to the inputs it fills, recomputed by ResizeObserver. On phones the flow shows as "from step 2" tokens instead of margin wires. |
+| Wires | A | Hand-drawn strokes (`perfect-freehand` over a level-ended cubic computed in `wires.tsx`) from an output token to the inputs it fills, recomputed by ResizeObserver. Below 640px there are no margin wires: each output's "→ feeds" row names the later steps that take it, and bound inputs carry tokens with the source step's number. |
 | Review bar | C | Sticky bottom bar on `--rail` with a ledge on top: count of pending writes (rolling number), the sites involved as monograms, one primary "Review N" button, and progress. Expands (motion) into the write cards. |
 | Write card | C | Title, "Changes <site>" tag, inputs via `InputFields compact`, one secondary button "Approve on <host>". Done shows a receipt with the result's links. |
 | Receipts and toasts | C | Receipts stay in the document and the activity log. `sonner` (unstyled, chunky card) echoes each result; never the only record. |
-| Approval sheet | C (`providers/bridge.html`, `providers/sheet.ts`) | The site's own page, its own look. Show values as before → after with `diff` (`diffWordsWithSpace`) and human labels: "Pre-release: No", not "Pre-release false". Plain DOM only; no React on the site's origin. |
+| Approval sheet | C (`providers/bridge.html`, `providers/sheet.ts`) | The site's own page, its own look. Show values with human labels: "Pre-release: No", not "Pre-release false". A generic sheet cannot know the site's current state, so the only comparison it shows is against the last request it saw for the same capability (`diffWordsWithSpace`), from the sheet's own memory. Plain DOM only; no React on the site's origin. |
 
 ## 5. Interaction
 
