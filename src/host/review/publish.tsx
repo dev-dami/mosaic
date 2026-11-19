@@ -1,97 +1,156 @@
-// Ready to publish: every write, gathered for review. Each one opens that site's own approval sheet.
-import { hostOf, capAnchor, type CapRef } from "../doc";
+// Write cards (inside the review dock) and the receipts they leave in the document.
+// A write never runs from Mosaic's page: its one button asks the site, and the site's own
+// approval sheet is the only place the person can approve it.
+import { ArrowUpRightIcon, CheckIcon, HourglassMediumIcon, ProhibitIcon, WarningIcon } from "@phosphor-icons/react";
+import { capAnchor, hostOf, type CapRef } from "../doc";
 import { fmtTime } from "../format";
-import { Button, Provenance, useHueStyle } from "../primitives";
+import { Button, Monogram, Provenance, Tag, useHueStyle } from "../primitives";
 import { InputFields } from "../runbook";
 import { useMosaic } from "../state";
+import { resultLinks, writeStatus, type WriteStatus } from "./status";
+import { openReview } from "./ui";
 
-export function PublishSection() {
-  const { state, model, actions } = useMosaic();
-  const { writes, pendingWrites, siteOrder } = model;
-  if (writes.length === 0) return null;
-  const sites = new Set(writes.map((w) => w.origin)).size;
-  const reason = state.sending ? "Publishing now" : pendingWrites.length === 0 ? "Every change is published" : state.confirming ? "Answer the open approval prompt first" : null;
-  return (
-    <section className="publish" id="publish">
-      <div className="publish-gutter">
-        <span className={`publish-num ${pendingWrites.length === 0 ? "done" : ""}`}>{siteOrder.length + 1}</span>
-      </div>
-      <header className="publish-head">
-        <div>
-          <h2>Ready to publish</h2>
-          <p className="publish-sub">
-            {writes.length} change{writes.length === 1 ? "" : "s"} on {sites} site{sites === 1 ? "" : "s"}. Each one opens that site's own approval prompt. Mosaic cannot approve for you.
-          </p>
-        </div>
-        <Button variant="primary" onClick={() => void actions.sendAll()} disabledReason={reason}>
-          {pendingWrites.length === 0 ? "All published" : `Review ${pendingWrites.length} on their sites`}
-        </Button>
-      </header>
-      <div className="publish-list">
-        {writes.map((w) => (
-          <WriteCard key={w.key} r={w} />
-        ))}
-      </div>
-    </section>
-  );
-}
+const STATUS_TAG: Partial<Record<WriteStatus, { tone: "warning" | "success" | "danger"; text: string }>> = {
+  waiting: { tone: "warning", text: "Waiting for you" },
+  done: { tone: "success", text: "Published" },
+  denied: { tone: "danger", text: "Denied" },
+  failed: { tone: "danger", text: "Failed" },
+};
 
-function WriteCard({ r }: { r: CapRef }) {
+/** One pending write: what it changes, its inputs, and the button that asks the site. */
+export function WriteCard({ r, index, offPlan }: { r: CapRef; index?: number; offPlan?: boolean }) {
   const { state, model, actions } = useMosaic();
   const hue = useHueStyle();
   const run = state.runs[r.key] ?? { status: "idle" };
-  const waiting = run.status === "running" && state.confirming === r.origin;
-  const ready = model.readyOf(r.origin);
+  const status = writeStatus(state, r);
   const host = hostOf(r.origin);
-  const status = waiting ? "waiting" : run.status;
-  const reason = !ready ? `Waiting for ${host} to answer` : waiting ? `Answer the prompt from ${host}` : run.status === "running" ? "Running now" : null;
+  const reason = !model.readyOf(r.origin)
+    ? `Waiting for ${host} to answer`
+    : status === "waiting"
+      ? `Answer the prompt from ${host} first`
+      : status === "running"
+        ? "Sending now"
+        : state.confirming
+          ? `Answer the prompt from ${hostOf(state.confirming)} first`
+          : null;
+  const tag = STATUS_TAG[status];
   return (
-    <article className={`write-card cap ${status}`} data-capability={r.cap.id} data-origin={r.origin} id={capAnchor(r.key)} style={hue(r.origin)}>
-      <header className="wc-head">
-        <span className={`wc-icon ${status}`} aria-hidden="true">
-          <span>{run.status === "done" ? "✓" : run.status === "error" ? "✕" : ""}</span>
+    <article className={`wcard cap ${status} ${offPlan ? "off-plan" : ""}`} data-capability={r.cap.id} data-origin={r.origin} id={capAnchor(r.key)} style={hue(r.origin)}>
+      <header className="wcard-head">
+        <span className="wcard-num" aria-hidden="true">
+          {status === "done" ? <CheckIcon weight="bold" /> : status === "denied" || status === "failed" ? <ProhibitIcon weight="bold" /> : (index ?? "·")}
         </span>
         <h3>{r.cap.title}</h3>
-        <span className="changes-tag">Changes {r.siteName}</span>
+        {tag && (
+          <Tag tone={tag.tone} size="sm">
+            {tag.text}
+          </Tag>
+        )}
         <Provenance name={r.siteName} origin={r.origin} />
       </header>
-      <InputFields r={r} compact />
-      <footer className="wc-foot">
-        {run.status === "done" ? (
-          <div className="output receipt">
-            <span className="receipt-check" aria-hidden="true">
-              ✓
-            </span>
-            <span>
-              Approved on <b>{host}</b> · {fmtTime(run.at)}
-            </span>
-            <OutputLinks output={run.output} origin={r.origin} />
-          </div>
-        ) : (
-          <>
-            <Button variant="secondary" onClick={() => void actions.run(r)} disabledReason={reason}>
-              {waiting ? `Waiting for ${host}…` : r.cap.title}
-            </Button>
-            <span className="hint">{waiting ? `Answer the prompt from ${host}` : `Opens ${host}'s own approval prompt`}</span>
-          </>
-        )}
-      </footer>
-      {run.status === "error" && <p className={`write-error output-error ${run.denied ? "denied" : ""}`}>{run.denied ? `Denied on ${host}: the person denied this action. Nothing changed.` : run.message}</p>}
+      {status !== "done" && (
+        <div className="wcard-body">
+          <InputFields r={r} compact />
+        </div>
+      )}
+      {status === "done" && run.status === "done" ? (
+        <div className="output wcard-receipt">
+          <CheckIcon weight="bold" aria-hidden="true" />
+          <span>
+            Published on <b>{host}</b> at {fmtTime(run.at)}
+          </span>
+          {resultLinks(run.output, r.origin).map((l) => (
+            <a key={l.key} href={l.href} target="_blank" rel="noreferrer" className="wcard-link">
+              {l.path}
+              <ArrowUpRightIcon aria-hidden="true" />
+            </a>
+          ))}
+        </div>
+      ) : (
+        <footer className="wcard-foot">
+          <Button variant="secondary" size="sm" icon={status === "waiting" ? <HourglassMediumIcon /> : undefined} onClick={() => void actions.run(r)} disabledReason={reason}>
+            {status === "denied" || status === "failed" ? `Ask ${host} again` : `Approve on ${host}`}
+          </Button>
+          <span className="hint">{status === "waiting" ? `${r.siteName} is showing its prompt now.` : `Opens ${r.siteName}'s own prompt. Nothing changes until you approve there.`}</span>
+        </footer>
+      )}
+      {run.status === "error" && (
+        <p className={`wcard-error output-error ${run.denied ? "denied" : ""}`}>
+          {run.denied ? <ProhibitIcon aria-hidden="true" /> : <WarningIcon aria-hidden="true" />}
+          <span>{run.denied ? `Denied on ${host}. Nothing changed.` : `${host} said: ${run.message}`}</span>
+        </p>
+      )}
     </article>
   );
 }
 
-/** Links a write returned (paths on the site's own origin). */
-function OutputLinks({ output, origin }: { output: unknown; origin: string }) {
-  if (!output || typeof output !== "object") return null;
-  const entries = Object.entries(output as Record<string, unknown>).filter(([, v]) => typeof v === "string" && v.startsWith("/"));
+/**
+ * Receipts, in the document: one stub per write that has an answer (published or denied). Pending
+ * writes live in the review dock, not here, so the document ends with what actually happened.
+ */
+export function PublishSection() {
+  const { state, model } = useMosaic();
+  const answered = model.refs.filter((r) => r.cap.side_effects === "write" && ["done", "denied", "failed"].includes(writeStatus(state, r)));
+  if (answered.length === 0) return null;
+  const published = answered.filter((r) => state.runs[r.key]?.status === "done").length;
   return (
-    <span className="receipt-links">
-      {entries.map(([k, v]) => (
-        <a key={k} href={new URL(v as string, origin).href} target="_blank" rel="noreferrer">
-          {v as string} ↗
-        </a>
-      ))}
-    </span>
+    <section className="receipts" id="receipts" aria-label="Receipts">
+      <header className="receipts-head">
+        <h2 className="label">Receipts</h2>
+        <span className="receipts-count">
+          {published} of {model.writes.length} published
+        </span>
+      </header>
+      <ol className="receipts-list">
+        {answered.map((r) => (
+          <ReceiptStub key={r.key} r={r} />
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function ReceiptStub({ r }: { r: CapRef }) {
+  const { state } = useMosaic();
+  const hue = useHueStyle();
+  const run = state.runs[r.key];
+  if (!run || (run.status !== "done" && run.status !== "error")) return null;
+  const ok = run.status === "done";
+  const host = hostOf(r.origin);
+  const links = ok ? resultLinks(run.output, r.origin) : [];
+  return (
+    <li className={`stub ${ok ? "ok" : "no"}`} style={hue(r.origin)}>
+      <div className="stub-main">
+        <Monogram name={r.siteName} origin={r.origin} />
+        <div className="stub-text">
+          <span className="stub-title">{r.cap.title}</span>
+          <span className="stub-sub">
+            {ok ? "Approved" : run.denied ? "Denied" : "Failed"} on <b>{host}</b> · <time>{fmtTime(run.at)}</time>
+          </span>
+        </div>
+      </div>
+      <div className="stub-tear" aria-hidden="true" />
+      <div className="stub-side">
+        {ok ? (
+          links.length > 0 ? (
+            links.map((l) => (
+              <a key={l.key} href={l.href} target="_blank" rel="noreferrer" className="stub-link">
+                {l.path}
+                <ArrowUpRightIcon aria-hidden="true" />
+              </a>
+            ))
+          ) : (
+            <span className="stub-note">Done</span>
+          )
+        ) : (
+          <button type="button" className="stub-note link-btn" onClick={() => openReview(r.key)}>
+            {run.denied ? "Nothing changed. Review again" : "Review again"}
+          </button>
+        )}
+        <span className="stub-stamp" aria-hidden="true">
+          {ok ? <CheckIcon weight="bold" /> : <ProhibitIcon weight="bold" />}
+        </span>
+      </div>
+    </li>
   );
 }

@@ -6,61 +6,158 @@
     <title>Approval</title>
     <link rel="stylesheet" href="../assets/fonts.css" />
     <style>
-      /* The site's own approval sheet. Each site sets its look in its bridge config,
-         so the prompt looks like the site that owns it and never like the host. */
+      /* The site's own approval sheet. Each site sets its scheme, accent and type in its bridge config,
+         so the prompt reads as that site's page, never as the host's. The structure is shared: warm
+         neutrals, one accent, chunky buttons on a hard ledge, small uppercase labels. */
       :root {
-        --accent: #2f6fde; --bg: #ffffff; --ink: #18181b; --muted: #6b6b73; --line: rgba(0,0,0,.09);
-        --soft: rgba(0,0,0,.035); --radius: 12px; --btn-radius: 10px;
-        --font: "Geist", ui-sans-serif, system-ui, sans-serif; --title-font: var(--font); --mono: "Geist Mono", ui-monospace, monospace;
+        color-scheme: light;
+        --accent: #2f6fde;
+        --bg: hsl(75 14% 97%); --card: #fff; --ink: #151515; --ink-2: hsl(0 0% 28%); --muted: hsl(0 0% 42%);
+        --line: hsl(78 13% 85%); --line-strong: hsl(69 8% 65%); --hover: rgb(0 0 0 / 6%);
+        --accent-ink: #fff; --accent-soft: color-mix(in oklab, var(--accent) 12%, transparent);
+        --edge: color-mix(in oklab, var(--accent) 72%, #000); --ledge: color-mix(in oklab, var(--accent) 55%, #000);
+        --yes: oklch(0.527 0.154 150); --no: hsl(0 0% 42%);
+        --ins: oklch(0.93 0.07 150); --del: oklch(0.93 0.04 25);
+        --warn-fill: oklch(0.973 0.071 103); --warn-line: oklch(0.852 0.199 92);
+        --radius: 6px; --radius-lg: 10px; --depth: 3px;
+        --font: "Geist", ui-sans-serif, system-ui, sans-serif; --title-font: "Nunito", ui-rounded, system-ui, sans-serif;
+        --mono: "Geist Mono", ui-monospace, monospace;
       }
-      :root[data-scheme="dark"] { --bg: #16131d; --ink: #efedf6; --muted: #9a95ab; --line: rgba(255,255,255,.09); --soft: rgba(255,255,255,.045); }
-      :root[data-font="serif"] { --title-font: "Newsreader", Georgia, serif; --radius: 4px; --btn-radius: 4px; }
-      :root[data-font="mono"] { --font: "Geist Mono", ui-monospace, monospace; --title-font: var(--font); --radius: 6px; --btn-radius: 6px; }
-      :root[data-font="rounded"] { --font: "Nunito", ui-rounded, system-ui, sans-serif; --title-font: var(--font); --radius: 20px; --btn-radius: 999px; }
-      :root[data-font="rounded"] { --bg: #fff8f4; }
+      :root[data-scheme="dark"] {
+        color-scheme: dark;
+        --bg: hsl(240 8% 9%); --card: hsl(235 8% 14%); --ink: hsl(0 0% 92%); --ink-2: hsl(0 0% 76%); --muted: hsl(0 0% 62%);
+        --line: hsl(230 8% 22%); --line-strong: hsl(230 8% 38%); --hover: rgb(255 255 255 / 7%);
+        --accent-ink: #111; --edge: color-mix(in oklab, var(--accent) 70%, #000); --ledge: color-mix(in oklab, var(--accent) 45%, #000);
+        --yes: oklch(0.792 0.209 152); --no: hsl(0 0% 62%);
+        --ins: oklch(0.36 0.08 150); --del: oklch(0.34 0.08 25);
+        --warn-fill: oklch(0.286 0.066 54); --warn-line: oklch(0.421 0.095 58);
+      }
+      /* Each site's own type and shape. */
+      :root[data-font="serif"] { --title-font: "Newsreader", Georgia, serif; --radius: 3px; --radius-lg: 4px; }
+      :root[data-font="mono"] { --font: "Geist Mono", ui-monospace, monospace; --title-font: var(--font); --radius: 4px; --radius-lg: 6px; }
+      :root[data-font="rounded"] { --font: "Nunito", ui-rounded, system-ui, sans-serif; --title-font: var(--font); --radius: 14px; --radius-lg: 18px; --bg: #fff8f4; }
+
       * { box-sizing: border-box; }
       html, body { height: 100%; }
       body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
       #root { min-height: 100%; display: flex; flex-direction: column; }
-      .bar { height: 4px; background: var(--accent); flex: none; }
-      .sheet { padding: 20px 22px 18px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+      .bar { height: 5px; background: var(--accent); flex: none; }
+      .ico { width: 1em; height: 1em; fill: currentColor; flex: none; }
+
+      .sheet { padding: 16px 20px 8px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
       .site { display: flex; align-items: center; gap: 10px; }
-      .mark { width: 32px; height: 32px; border-radius: calc(var(--radius) * .6); background: var(--accent); color: #fff; display: grid; place-items: center; font: 700 15px var(--title-font); flex: none; }
-      .site .name { font: 650 15px/1.2 var(--title-font); }
-      :root[data-font="serif"] .site .name { font-size: 18px; font-weight: 600; }
-      .site .origin { font: 12px var(--mono); color: var(--muted); }
-      .lock { margin-left: auto; font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
-      .ask { border-top: 1px solid var(--line); padding-top: 14px; }
-      .verb { font: 650 22px/1.2 var(--title-font); letter-spacing: -0.01em; }
-      :root[data-font="serif"] .verb { font-size: 27px; font-weight: 500; }
-      .via { color: var(--muted); font-size: 13px; margin-top: 4px; }
-      .via b { color: var(--ink); font-weight: 600; }
-      dl { margin: 0; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-      dl div { display: grid; grid-template-columns: 110px 1fr; gap: 12px; padding: 8px 12px; }
-      dl div + div { border-top: 1px solid var(--line); }
-      dt { color: var(--muted); font-size: 13px; }
-      dd { margin: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .consequence { font-size: 13px; color: var(--muted); margin: 0; display: flex; gap: 8px; }
-      .consequence::before { content: ""; width: 8px; height: 8px; margin-top: 6px; border-radius: 2px; background: var(--accent); flex: none; transform: rotate(45deg); }
+      .mark {
+        width: 34px; height: 34px; border-radius: var(--radius); flex: none; display: grid; place-items: center;
+        background: var(--accent); color: var(--accent-ink); font: 800 16px var(--title-font);
+        border: 1px solid var(--edge); box-shadow: 0 var(--depth) 0 var(--ledge); margin-bottom: var(--depth);
+      }
+      .who { min-width: 0; line-height: 1.25; }
+      .site .name { font: 800 15px var(--title-font); }
+      :root[data-font="serif"] .site .name { font-size: 19px; font-weight: 600; }
+      .site .tagline { font-size: 11.5px; color: var(--muted); }
+      .origin-pill {
+        margin-left: auto; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+        font: 500 11.5px var(--mono); color: var(--ink-2); padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--card);
+      }
+
+      .ask { border-top: 1px solid var(--line); padding-top: 12px; }
+      .kicker { font: 600 10.5px/1.6 var(--font); text-transform: uppercase; letter-spacing: 0.075em; color: var(--muted); }
+      :root[data-font="mono"] .kicker { letter-spacing: 0.04em; }
+      .verb { margin: 0; font: 800 24px/1.15 var(--title-font); letter-spacing: -0.01em; }
+      :root[data-font="serif"] .verb { font-size: 30px; font-weight: 500; }
+      :root[data-font="mono"] .verb { font-size: 21px; font-weight: 700; letter-spacing: -0.02em; }
+      .via { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; }
+      .via b { color: var(--ink); font: 600 12px var(--mono); }
+
+      /* Values: labels on the left, values for people on the right. */
+      .values { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: 0 var(--depth) 0 var(--line); overflow: hidden; }
+      .values .row { display: grid; grid-template-columns: minmax(84px, 30%) 1fr; gap: 12px; padding: 9px 12px; align-items: baseline; }
+      .values .row + .row { border-top: 1px solid var(--line); }
+      dt { font: 600 10.5px/1.9 var(--font); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+      dd { margin: 0; min-width: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+      .v-empty { color: var(--muted); font-style: italic; }
+      .v-bool { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; padding: 0 8px 0 6px; border: 1px solid currentColor; border-radius: 999px; font-size: 12.5px; line-height: 20px; }
+      .v-bool.yes { color: var(--yes); }
+      .v-bool.no { color: var(--no); }
+      .v-date { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+      .v-date time { font-weight: 600; }
+      .v-rel { color: var(--muted); font-size: 12px; }
+      .v-num { font-variant-numeric: tabular-nums; font-weight: 600; }
+      .v-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+      .v-list li { padding: 0 6px; border: 1px solid var(--line-strong); border-radius: var(--radius); font-size: 12.5px; }
+      .v-json, pre { margin: 0; background: var(--bg); border: 1px solid var(--line); padding: 8px 10px; border-radius: var(--radius); max-height: 140px; overflow: auto; font: 11.5px/1.5 var(--mono); white-space: pre-wrap; color: var(--ink); }
+      .v-lines strong { display: block; font: 700 13.5px var(--title-font); }
+      .v-lines p { margin: 0 0 4px; }
+      .v-lines ul { margin: 2px 0 4px; padding-left: 18px; }
+      .v-lines li { margin: 1px 0; }
+      .v-lines li::marker { color: var(--accent); }
+      .fold.folded .v-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+      .fold.folded .v-lines { max-height: 7.6em; overflow: hidden; mask-image: linear-gradient(#000 70%, transparent); -webkit-mask-image: linear-gradient(#000 70%, transparent); }
+      .more { margin-top: 4px; padding: 0; border: 0; background: none; color: var(--accent); font: 600 12px var(--font); cursor: pointer; }
+      .more:hover { text-decoration: underline; }
+
+      /* What changed since the last time this sheet asked (its own memory, nothing from the host). */
+      .since { font-size: 12.5px; border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; background: var(--card); color: var(--ink-2); }
+      .since.changed { background: var(--warn-fill); border-color: var(--warn-line); color: var(--ink); }
+      .since-title { font-weight: 600; margin-bottom: 4px; }
+      .since-row { display: grid; grid-template-columns: minmax(84px, 30%) 1fr; gap: 10px; padding-top: 3px; }
+      .since-key { font: 600 10.5px/1.9 var(--font); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+      .diff { white-space: pre-wrap; overflow-wrap: anywhere; }
+      ins { background: var(--ins); text-decoration: none; border-radius: 2px; }
+      del { background: var(--del); color: var(--muted); border-radius: 2px; }
+
+      .consequence { font-size: 12.5px; color: var(--muted); margin: 0; }
+      .consequence b { color: var(--ink); font-weight: 600; }
       details { font-size: 12px; color: var(--muted); }
-      summary { cursor: pointer; }
-      pre { background: var(--soft); border: 1px solid var(--line); padding: 10px; border-radius: calc(var(--radius) * .6); max-height: 140px; overflow: auto; font: 11.5px/1.5 var(--mono); white-space: pre-wrap; color: var(--ink); }
-      .actions { display: flex; gap: 10px; margin-top: auto; padding-top: 4px; }
-      button { font: 600 14px var(--font); padding: 11px 16px; border-radius: var(--btn-radius); border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
-      button.deny { flex: none; }
-      button.approve { flex: 1; position: relative; overflow: hidden; background: var(--accent); border-color: var(--accent); color: #fff; }
-      button.approve .fill { position: absolute; inset: 0; background: rgba(255,255,255,.28); transform-origin: left; animation: sweep 700ms linear forwards; }
-      button.approve span { position: relative; }
-      button.approve:disabled { cursor: default; filter: saturate(.7); opacity: .75; }
-      @keyframes sweep { from { transform: scaleX(0); } to { transform: scaleX(1); opacity: 0; } }
-      .status { flex: 1; display: grid; place-items: center; text-align: center; padding: 24px; gap: 10px; align-content: center; }
-      .status .icon { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; color: #fff; background: var(--accent); }
-      .status.denied .icon { background: var(--muted); }
-      .status .msg { font: 600 17px var(--title-font); }
-      .status .sub { color: var(--muted); font-size: 13px; }
-      .spinner { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+      summary { cursor: pointer; width: max-content; }
+      summary:hover { color: var(--ink); }
+      details pre { margin-top: 6px; }
+
+      /* The answer: two chunky buttons that stay in reach. */
+      .foot { position: sticky; bottom: 0; padding: 10px 20px 14px; background: var(--bg); border-top: 1px solid var(--line); }
+      .actions { display: flex; gap: 10px; }
+      button.deny, button.approve {
+        position: relative; height: 42px; padding: 0 18px; margin-bottom: var(--depth);
+        font: 800 14.5px var(--title-font); border-radius: var(--radius); cursor: pointer;
+        transition: translate 200ms ease, box-shadow 200ms ease;
+      }
+      button.deny { flex: none; background: var(--card); color: var(--ink); border: 1px solid var(--line-strong); box-shadow: 0 var(--depth) 0 var(--line-strong); }
+      button.approve { flex: 1; overflow: hidden; background: var(--accent); color: var(--accent-ink); border: 1px solid var(--edge); box-shadow: 0 var(--depth) 0 var(--ledge); }
+      button.deny:hover, button.approve:not(:disabled):hover { transition-duration: 0ms; translate: 0 -1px; }
+      button.deny:hover { box-shadow: 0 calc(var(--depth) + 1px) 0 var(--line-strong); }
+      button.approve:not(:disabled):hover { box-shadow: 0 calc(var(--depth) + 1px) 0 var(--ledge); }
+      button.deny:active, button.approve:not(:disabled):active { transition-duration: 100ms; translate: 0 var(--depth); box-shadow: none; }
+      button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      button.approve .label { position: relative; }
+      /* The short pause before Approve works is visible: the button starts flat and grey, fills with the
+         site's colour from the left, then rises onto its ledge when it can be pressed. The timing is
+         bridge.ts's (it sets and clears `disabled`); this only draws it. */
+      button.approve:disabled { cursor: wait; translate: 0 var(--depth); box-shadow: none; background: var(--card); color: var(--muted); border-color: var(--line-strong); }
+      button.approve .fill { position: absolute; inset: 0; background: var(--accent); opacity: 0; transform-origin: left; transform: scaleX(0); }
+      button.approve:disabled .fill { opacity: 0.32; animation: unlock 700ms linear forwards; }
+      button.approve:not(:disabled) { animation: ready 180ms ease-out; }
+      @keyframes unlock { to { transform: scaleX(1); } }
+      @keyframes ready { from { translate: 0 var(--depth); box-shadow: none; } }
+      .delay-note { margin: 4px 0 0; font-size: 11.5px; color: var(--muted); }
+
+      /* Progress and result, on the site's own page. */
+      .status-sheet { flex: 1; }
+      .status { flex: 1; display: grid; place-items: center; align-content: center; text-align: center; gap: 8px; padding: 24px 12px 40px; border-top: 1px solid var(--line); }
+      .status .icon {
+        width: 52px; height: 52px; border-radius: var(--radius-lg); display: grid; place-items: center; font-size: 26px; margin-bottom: 8px;
+        background: var(--accent); color: var(--accent-ink); border: 1px solid var(--edge); box-shadow: 0 var(--depth) 0 var(--ledge);
+      }
+      .status.denied .icon { background: var(--card); color: var(--muted); border-color: var(--line-strong); box-shadow: 0 var(--depth) 0 var(--line-strong); }
+      .status.failed .icon { background: var(--card); color: oklch(0.6 0.22 27); border-color: currentColor; box-shadow: 0 var(--depth) 0 currentColor; }
+      .status .msg { font: 800 19px var(--title-font); }
+      .status .sub { color: var(--muted); font-size: 13px; max-width: 320px; }
+      .spinner { width: 32px; height: 32px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: spin 0.8s linear infinite; margin-bottom: 8px; }
       @keyframes spin { to { transform: rotate(360deg); } }
-      @media (prefers-reduced-motion: reduce) { .spinner, button.approve .fill { animation-duration: 0s; } }
+      @media (prefers-reduced-motion: reduce) {
+        .spinner { animation-duration: 2s; }
+        button.approve:not(:disabled) { animation: none; }
+        button.deny, button.approve { transition: none; }
+      }
     </style>
   </head>
   <body>
