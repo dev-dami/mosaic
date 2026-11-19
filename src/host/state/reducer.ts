@@ -1,0 +1,157 @@
+// The pure reducer for workspace state. Owner: foundation (shared).
+import { siteHue } from "../hue";
+import type { Action, State, Trace, TraceStage } from "./types";
+
+export const initialState: State = {
+  host: null,
+  buildCheck: null,
+  conns: [],
+  trace: null,
+  connectError: null,
+  title: "Launch Lumen v1.0",
+  overrides: {},
+  runs: {},
+  manual: {},
+  bindings: {},
+  receipts: [],
+  confirming: null,
+  sending: false,
+  hues: {},
+  fresh: [],
+  hot: null,
+  pulse: null,
+};
+
+/** Replace the last stage of the trace for `origin` (the one in progress) and append more. */
+function traceFor(state: State, origin: string, update: (t: Trace) => Trace): Trace | null {
+  return state.trace && state.trace.origin === origin ? update(state.trace) : state.trace;
+}
+const settleLast = (stages: TraceStage[], last: TraceStage, ...more: TraceStage[]) => [...stages.slice(0, -1), last, ...more];
+
+export function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case "host/loaded":
+      return { ...state, host: action.info };
+
+    case "connect/started":
+      return { ...state, connectError: null, trace: { origin: action.origin, stages: [{ stage: "fetch", state: "doing" }] } };
+
+    case "connect/rejected":
+      return { ...state, connectError: action.message };
+
+    case "connect/manifest-read": {
+      const { site } = action;
+      return {
+        ...state,
+        trace: traceFor(state, action.origin, (t) => ({
+          ...t,
+          siteName: site.site.name,
+          capabilities: site.capabilities.length,
+          writes: site.capabilities.filter((c) => c.side_effects === "write").length,
+          stages: [
+            { stage: "fetch", state: "done" },
+            { stage: "verify", state: "done" },
+            { stage: "bridge", state: "doing" },
+          ],
+        })),
+      };
+    }
+
+    case "connect/failed":
+      return {
+        ...state,
+        connectError: action.message,
+        trace: traceFor(state, action.origin, (t) => {
+          const last = t.stages[t.stages.length - 1]!;
+          return { ...t, stages: settleLast(t.stages, { stage: last.stage, state: "failed", detail: action.message }) };
+        }),
+      };
+
+    case "site/added": {
+      const origin = action.site.site.origin;
+      const hue = state.hues[origin] ?? siteHue(origin, Object.values(state.hues));
+      return {
+        ...state,
+        conns: [...state.conns, { key: action.key, site: action.site, status: "connecting" }],
+        hues: { ...state.hues, [origin]: hue },
+        fresh: [...state.fresh.filter((o) => o !== origin), origin],
+      };
+    }
+
+    case "site/settled":
+      return { ...state, fresh: state.fresh.filter((o) => o !== action.origin) };
+
+    case "site/bridge": {
+      const { origin, status, failure } = action;
+      return {
+        ...state,
+        conns: state.conns.map((c) => (c.site.site.origin === origin ? { ...c, status, failure } : c)),
+        trace: traceFor(state, origin, (t) => ({
+          ...t,
+          stages: settleLast(t.stages, { stage: "bridge", state: status === "ready" ? "done" : "failed", detail: failure }),
+        })),
+      };
+    }
+
+    case "site/build-checked":
+      return {
+        ...state,
+        buildCheck: action.same ? "same" : "changed",
+        trace: traceFor(state, action.origin, (t) => ({
+          ...t,
+          build: action.build,
+          buildSame: action.same,
+          stages: [...t.stages, { stage: "build", state: action.same ? "done" : "failed" }],
+        })),
+      };
+
+    case "site/removed":
+      return { ...state, conns: state.conns.filter((c) => c.site.site.origin !== action.origin) };
+
+    case "site/hue":
+      return { ...state, hues: { ...state.hues, [action.origin]: action.hue } };
+
+    case "doc/title":
+      return { ...state, title: action.title };
+
+    case "doc/prop":
+      return { ...state, overrides: { ...state.overrides, [action.key]: action.value } };
+
+    case "input/value":
+      return { ...state, manual: { ...state.manual, [action.cap]: { ...state.manual[action.cap], [action.field]: action.value } } };
+
+    case "input/binding": {
+      const { binding } = action;
+      return {
+        ...state,
+        bindings: { ...state.bindings, [action.cap]: { ...state.bindings[action.cap], [action.field]: binding } },
+        pulse: binding?.kind === "output" ? { cap: binding.cap, at: action.at } : state.pulse,
+      };
+    }
+
+    case "run/started":
+      return { ...state, runs: { ...state.runs, [action.cap]: { status: "running" } } };
+
+    case "run/done":
+      return {
+        ...state,
+        runs: { ...state.runs, [action.cap]: { status: "done", output: action.output, at: action.at } },
+        pulse: action.pulse ? { cap: action.cap, at: action.at.getTime() } : state.pulse,
+      };
+
+    case "run/failed":
+      return { ...state, runs: { ...state.runs, [action.cap]: { status: "error", message: action.message, denied: action.denied, at: action.at } } };
+
+    case "receipt/added":
+      return { ...state, receipts: [action.receipt, ...state.receipts].slice(0, 40) };
+
+    case "approval/sheet":
+      return { ...state, confirming: action.origin };
+
+    case "publish/sending":
+      return { ...state, sending: action.sending };
+
+    case "ui/hot":
+      return { ...state, hot: action.cap };
+  }
+}

@@ -1,0 +1,151 @@
+/* Shared primitives. Owner: foundation. Areas use these classes; they do not override them. */
+
+/* ── 3D button: a face on a hard ledge ─────────────────────────────────────
+   Hover lifts with no transition in (snappy), and eases back out. Press sinks onto the ledge. */
+.btn {
+  --face: transparent; --ink-c: var(--ink); --edge: transparent; --edge-h: transparent; --ledge: transparent;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; flex: none;
+  height: 2.3125rem; padding: 0 0.75rem; margin-bottom: var(--depth);
+  font: 700 0.875rem/1.5rem var(--font-title); color: var(--ink-c); white-space: nowrap;
+  background: var(--face); border: 1px solid var(--edge); border-radius: var(--radius);
+  box-shadow: 0 var(--depth) 0 0 var(--ledge);
+  cursor: pointer; user-select: none; translate: 0 0;
+  transition: translate var(--t-base) ease, box-shadow var(--t-base) ease, border-color var(--t-base) ease, background-color var(--t-fast) ease;
+}
+.btn > svg { width: 1.125rem; height: 1.125rem; opacity: 0.8; flex: none; }
+.btn .btn-label { overflow: hidden; text-overflow: ellipsis; }
+.btn--primary   { --face: var(--btn1-face); --ink-c: var(--btn1-ink); --edge: var(--btn1-edge); --edge-h: var(--btn1-edge-hover); --ledge: var(--btn1-ledge); }
+.btn--secondary { --face: var(--btn2-face); --edge: var(--btn2-edge); --edge-h: var(--btn2-edge-hover); --ledge: var(--btn2-ledge); }
+.btn--danger    { --face: var(--btn2-face); --ink-c: var(--danger); --edge: var(--btn-danger-edge); --edge-h: var(--danger); --ledge: var(--btn-danger-ledge); }
+.btn--primary:not([aria-disabled="true"]):hover,
+.btn--secondary:not([aria-disabled="true"]):hover,
+.btn--danger:not([aria-disabled="true"]):hover {
+  transition-duration: 0ms;
+  translate: 0 -1px; border-color: var(--edge-h);
+  box-shadow: 0 calc(var(--depth) + 1px) 0 0 var(--ledge);
+}
+.btn--primary:not([aria-disabled="true"]):active,
+.btn--secondary:not([aria-disabled="true"]):active,
+.btn--danger:not([aria-disabled="true"]):active {
+  transition-duration: var(--t-fast);
+  translate: 0 var(--depth); box-shadow: 0 0 0 0 var(--ledge);
+}
+.btn--tertiary { margin-bottom: 0; font-weight: 600; }
+.btn--tertiary:not([aria-disabled="true"]):hover { background: var(--hover); }
+.btn--tertiary:not([aria-disabled="true"]):active { background: var(--pressed); }
+.btn[aria-disabled="true"] { opacity: var(--disabled); cursor: not-allowed; }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius); }
+.btn--xs { height: 1.625rem; padding: 0 0.375rem; font-size: 0.75rem; gap: 0.25rem; }
+.btn--xs > svg { width: 0.875rem; height: 0.875rem; }
+.btn--sm { height: 2.0625rem; padding: 0 0.5rem; }
+.btn--lg { height: 3.0625rem; padding: 0 1rem; font-size: 1rem; gap: 0.75rem; }
+@media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
+
+/* ── Flat text actions and hints ─────────────────────────────────────────── */
+.link-btn { border: 0; background: none; color: var(--muted); font: 500 12px var(--font-sans); cursor: pointer; padding: 2px 6px; border-radius: var(--radius-sm); }
+.link-btn:hover { color: var(--ink); background: var(--hover); }
+.link-btn[aria-disabled="true"], .link-btn:disabled { opacity: var(--disabled); cursor: not-allowed; }
+.hint { font-size: 12px; color: var(--muted); }
+
+/* ── Keyboard chips ──────────────────────────────────────────────────────── */
+.kbd-group { display: inline-flex; gap: 2px; }
+.kbd {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 1.25rem; height: 1.25rem;
+  padding: 0.125rem 0.25rem; font: 700 0.75rem/1 var(--font-title); color: var(--ink); background: var(--surface);
+  border: 1px solid var(--kbd-edge); border-bottom-width: 2px; border-radius: var(--radius-sm);
+}
+.btn .kbd-group { margin-left: 0.25rem; }
+.btn--primary .kbd { background: transparent; color: inherit; border-color: currentColor; opacity: 0.7; }
+.tooltip .kbd { background: transparent; color: inherit; opacity: 0.65; }
+
+/* ── Tags: outline only ──────────────────────────────────────────────────── */
+.tag {
+  display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.125rem 0.375rem;
+  font: 500 0.6875rem/1rem var(--font-sans); color: var(--ink-2);
+  border: 1px solid var(--line); border-radius: var(--radius); white-space: nowrap;
+}
+.tag > svg { width: 0.75rem; height: 0.75rem; }
+.tag--sm { font-size: 0.625rem; padding: 0 0.25rem; }
+.tag--accent  { color: var(--accent);  border-color: currentColor; }
+.tag--success { color: var(--success); border-color: currentColor; }
+.tag--warning { color: var(--warning); border-color: currentColor; }
+.tag--danger  { color: var(--danger);  border-color: currentColor; }
+.tag--info    { color: var(--info); background: var(--info-fill); border-color: var(--info-line); }
+
+/* ── Panel: surface card with the hard ledge ─────────────────────────────── */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+.panel--ledge { box-shadow: var(--elev); }
+
+/* ── Banner ──────────────────────────────────────────────────────────────── */
+.banner { display: flex; align-items: flex-start; gap: 0.5rem; min-height: 3rem; padding: 0.5rem 0.75rem; font-size: 13px; font-weight: 500; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.banner-icon { flex: none; display: grid; place-items: center; width: 1.5rem; height: 1.5rem; }
+.banner-icon > svg { width: 1.25rem; height: 1.25rem; }
+.banner-body { flex: 1; min-width: 0; align-self: center; overflow-wrap: anywhere; }
+.banner-actions { flex: none; display: flex; gap: 0.5rem; align-self: center; }
+.banner--danger  { background: var(--danger-fill);  border-color: var(--danger-line); }
+.banner--danger .banner-icon { color: var(--danger); }
+.banner--warning { background: var(--warning-fill); border-color: var(--warning-line); }
+.banner--warning .banner-icon { color: var(--warning); }
+.banner--success { background: var(--success-fill); border-color: var(--success-line); }
+.banner--success .banner-icon { color: var(--success); }
+.banner--info .banner-icon { color: var(--info); }
+
+/* ── Empty state ─────────────────────────────────────────────────────────── */
+.empty-frame { border: 2px dashed var(--line); border-radius: var(--radius-lg); padding: 2rem; }
+.empty-title { margin: 0 0 0.375rem; font-size: 1.125rem; }
+.empty-body { color: var(--muted); max-width: 36rem; }
+.empty-body p { margin: 0; }
+.empty-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 1.5rem; }
+
+/* ── Tooltip: inverted surface ───────────────────────────────────────────── */
+.tooltip {
+  z-index: 100; max-width: 24rem; padding: 0.375rem 0.5rem; border-radius: var(--radius);
+  background: var(--tooltip-bg); color: var(--tooltip-ink); font: 500 12px/1.45 var(--font-sans);
+  box-shadow: var(--elev-modal);
+  animation: tooltip-in var(--t-fast) var(--ease-out);
+}
+.tooltip[data-state="closed"] { animation: tooltip-out 50ms ease-out forwards; }
+.tooltip-arrow { fill: var(--tooltip-bg); }
+@keyframes tooltip-in { from { opacity: 0; translate: 0 3px; } to { opacity: 1; translate: 0 0; } }
+@keyframes tooltip-out { to { opacity: 0; } }
+
+/* ── Disclosure ──────────────────────────────────────────────────────────── */
+.disclosure-trigger { margin-left: -6px; }
+.disclosure-content { overflow: hidden; }
+
+/* ── Provenance: monogram, origin, pill, token ───────────────────────────── */
+.mono-chip {
+  display: inline-grid; place-items: center; flex: none; position: relative;
+  width: 28px; height: 28px; border-radius: var(--radius);
+  background: var(--site-bg); color: var(--site-ink); box-shadow: inset 0 0 0 1px var(--site-line);
+  font: 800 13px/1 var(--font-title);
+}
+.mono-chip.sm { width: 18px; height: 18px; border-radius: var(--radius-sm); font-size: 10.5px; }
+.mono-chip.lg { width: 36px; height: 36px; border-radius: var(--radius-lg); font-size: 16px; }
+.mono-chip.ring-running::after { content: ""; position: absolute; inset: -4px; border-radius: 9px; border: 1.5px solid transparent; border-top-color: var(--site-solid); animation: spin 0.9s linear infinite; }
+.mono-chip.ring-failed::after { content: ""; position: absolute; inset: -3px; border-radius: 8px; border: 1.5px solid var(--danger); }
+.origin { font: 12px/1.3 var(--font-mono); color: var(--ink-2); white-space: nowrap; }
+.origin .dim { color: var(--faint); }
+.provenance {
+  display: inline-flex; align-items: center; gap: 6px; flex: none; max-width: 100%;
+  padding: 2px 8px 2px 3px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--site-line);
+  font-size: 12px; white-space: nowrap;
+}
+.pv-name { font-weight: 600; color: var(--site-ink); }
+.provenance .origin { font-size: 11px; color: var(--muted); }
+.provenance .origin .dim { color: var(--muted); opacity: 0.75; }
+
+.token {
+  display: inline-flex; align-items: center; gap: 5px; height: 24px; max-width: 100%; padding: 0 7px 0 3px;
+  border-radius: var(--radius); background: var(--site-bg, var(--sunken-2)); border: 1px solid var(--site-line, var(--line-strong));
+  font-size: 12px; white-space: nowrap; color: var(--ink-2);
+}
+.token.doc-tk { padding-left: 6px; }
+.tk-doc { font: 800 12px var(--font-title); color: var(--muted); }
+.tk-source { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.tk-sep { color: var(--faint); }
+.tk-label { font: 550 12px var(--font-mono); color: var(--site-ink, var(--ink)); }
+.token.pending { background: transparent; border-style: dashed; }
+.tk-x { border: 0; background: none; color: var(--faint); cursor: pointer; padding: 0 0 0 2px; font-size: 14px; line-height: 1; }
+.tk-x:hover { color: var(--ink); }

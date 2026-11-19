@@ -40,6 +40,9 @@ export function originParts(origin: string): { lead: string; main: string; tail:
 
 export const hostOf = (origin: string) => new URL(origin).host;
 
+/** The DOM id of a capability's block, for in-page links (`#cap-…`). */
+export const capAnchor = (key: CapKey) => `cap-${key.replace(/[^a-z0-9]+/gi, "-")}`;
+
 // ── Outcome sentence ──────────────────────────────────────────────────────────
 
 const VERBS = /^(launch|ship|release|publish|announce|cut|prepare)\b/i;

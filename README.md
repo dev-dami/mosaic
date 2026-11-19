@@ -75,10 +75,11 @@ The parts:
 | `spec/capabilities-v0.schema.json` | The manifest format. Capability fields follow the WebAgentica tool declaration where they overlap. |
 | `src/protocol.ts` | Manifest parsing (bound to the origin that served it) and the bridge message types. |
 | `src/form.ts` | The capability-to-UI compiler: JSON Schema to form fields, and form values back to typed input. |
-| `src/host/` | The Mosaic workspace (React) and the host end of the bridge. |
+| `src/host/` | The Mosaic workspace (React) and the host end of the bridge. A thin shell (`app.tsx`) mounts three areas, `runbook/`, `entry/` and `review/`, over one store (`state/`) and shared primitives (`primitives/`). See [docs/design.md](docs/design.md). |
 | `providers/site.ts`, `providers/bridge.ts` | A small kit that makes any site Mosaic-compatible: manifest, bridge page, guarded API. |
 | `providers/{docs,releases,announcer}.ts` | Three fictional demo sites: Pagewright (docs), Tagforge (releases), Loudhailer (announcements). |
-| `src/host/doc.ts` | Runbook logic: provenance hue, markdown and diff models, the outcome sentence, field bindings. |
+| `src/host/doc.ts` | Runbook logic: markdown and diff models, the outcome sentence, field bindings. |
+| `src/host/hue.ts` | Site hues: host-assigned from the origin, kept out of the red, amber, green and accent bands. |
 
 ### Security rules in the spike
 

@@ -1,0 +1,180 @@
+/* Mosaic theme: tokens for both schemes, base elements, shared keyframes.
+   Owner: foundation (shared). Builders read these tokens; they do not redefine them.
+   Structure follows a warm-parchment product palette: warm neutrals in light, cool neutrals in dark,
+   exactly one accent (ultramarine, hue 268), status colours kept apart from the accent and from
+   site hues, a hard 3px ledge as the only elevation (modals excepted), and neutral alpha hovers.
+   See docs/design.md for the rules. */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --bg: hsl(75 14% 95%);          /* page */
+  --rail: hsl(70 16% 93%);        /* toolbars, side panel, review bar */
+  --surface: #fff;                /* cards, steps, tables, palette */
+  --sunken: hsl(77 13% 89%);      /* wells, code, table head */
+  --sunken-2: #f9faf7;            /* table body, quiet wells */
+  --field: #fff;
+  --overlay: rgb(0 0 0 / 20%);    /* modal backdrop, with a 5px blur */
+
+  /* Text */
+  --ink: #111;
+  --ink-2: hsl(0 0% 25%);
+  --muted: hsl(0 0% 40%);
+  --faint: rgb(17 17 17 / 45%);
+  --trace: rgb(17 17 17 / 25%);
+
+  /* Lines */
+  --line: hsl(78 13% 85%);
+  --line-strong: hsl(69 8% 65%);
+  --line-bold: rgb(0 0 0 / 24%);
+
+  /* Neutral interaction fills: never a tint of the accent */
+  --hover: color-mix(in oklab, #000 7.5%, transparent);
+  --pressed: color-mix(in oklab, #000 5%, transparent);
+  --ring: color-mix(in oklab, #000 7.5%, transparent);
+
+  /* The one accent */
+  --accent-h: 268;
+  --accent: oklch(0.52 0.2 var(--accent-h));
+  --accent-hover: oklch(0.6 0.2 var(--accent-h));
+  --accent-10: color-mix(in oklab, var(--accent) 10%, transparent);
+  --accent-20: color-mix(in oklab, var(--accent) 20%, transparent);
+
+  /* Status: never reused as the accent or as a site hue */
+  --success: oklch(0.527 0.154 150); --success-fill: oklch(0.962 0.044 157); --success-line: oklch(0.792 0.209 152); --success-solid: oklch(0.6 0.17 150);
+  --warning: oklch(0.554 0.135 66);  --warning-fill: oklch(0.973 0.071 103); --warning-line: oklch(0.852 0.199 92);  --warning-solid: oklch(0.72 0.17 70);
+  --danger:  oklch(0.577 0.245 27);  --danger-fill:  oklch(0.936 0.032 18);  --danger-line:  oklch(0.704 0.191 22);  --danger-solid: oklch(0.6 0.23 27);
+  --info:    oklch(0.546 0.245 263); --info-fill:    oklch(0.97 0.014 255);  --info-line:    oklch(0.707 0.165 255);
+  --on-solid: #fff;
+  --mark: hsl(42 93% 86% / 80%);
+
+  /* 3D buttons */
+  --btn1-face: oklch(0.55 0.2 var(--accent-h)); --btn1-ink: #fff;
+  --btn1-edge: oklch(0.4 0.17 var(--accent-h)); --btn1-edge-hover: oklch(0.33 0.15 var(--accent-h));
+  --btn1-ledge: oklch(0.36 0.15 var(--accent-h));
+  --btn2-face: var(--surface); --btn2-edge: hsl(78 13% 85%); --btn2-edge-hover: hsl(69 8% 65%); --btn2-ledge: #e1dddd;
+  --btn-danger-edge: oklch(0.637 0.237 25); --btn-danger-ledge: color-mix(in oklab, var(--danger) 50%, transparent);
+  --kbd-edge: #aaa;
+
+  /* Shape */
+  --radius-sm: 0.25rem; --radius: 0.375rem; --radius-lg: 0.625rem;
+  --depth: 0.1875rem;
+  --elev: 0 var(--depth) 0 var(--line);
+  --elev-modal: 0 16px 16px -16px rgb(0 0 0 / 35%);
+  --shadow-sheet: 0 24px 48px -12px rgb(0 0 0 / 45%), 0 0 0 1px var(--line-bold);
+  --tooltip-bg: hsl(235 8% 15%); --tooltip-ink: hsl(0 0% 90%);
+
+  /* Type */
+  --font-title: "Nunito", ui-rounded, system-ui, sans-serif;
+  --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Motion */
+  --t-fast: 100ms; --t-tab: 150ms; --t-base: 200ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-pop: cubic-bezier(0, 0.5, 0.5, 1);
+  --disabled: 0.65;
+}
+
+/* Dark: the same block twice, once for the system preference and once for an explicit choice. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: hsl(240 8% 8%); --rail: hsl(240 8% 10%); --surface: hsl(235 8% 15%); --sunken: hsl(240 8% 10%); --sunken-2: #232429;
+    --field: hsl(235 8% 15%); --overlay: rgb(0 0 0 / 45%);
+    --ink: hsl(0 0% 90%); --ink-2: hsl(0 0% 75%); --muted: hsl(0 0% 62%); --faint: rgb(255 255 255 / 42%); --trace: rgb(255 255 255 / 25%);
+    --line: hsl(230 8% 20%); --line-strong: hsl(230 8% 40%); --line-bold: rgb(255 255 255 / 20%);
+    --hover: color-mix(in oklab, #fff 7.5%, transparent); --pressed: color-mix(in oklab, #fff 5%, transparent); --ring: color-mix(in oklab, #fff 10%, transparent);
+    --accent: oklch(0.72 0.14 var(--accent-h)); --accent-hover: oklch(0.8 0.12 var(--accent-h));
+    --success: oklch(0.792 0.209 152); --success-fill: color-mix(in oklab, oklch(0.266 0.065 153) 50%, transparent); --success-line: oklch(0.393 0.095 153); --success-solid: oklch(0.72 0.17 152);
+    --warning: oklch(0.852 0.199 92);  --warning-fill: oklch(0.286 0.066 54); --warning-line: oklch(0.421 0.095 58); --warning-solid: oklch(0.8 0.16 80);
+    --danger:  oklch(0.704 0.191 22);  --danger-fill: color-mix(in oklab, oklch(0.258 0.092 26) 50%, transparent); --danger-line: oklch(0.396 0.141 26); --danger-solid: oklch(0.68 0.2 25);
+    --info:    oklch(0.707 0.165 255); --info-fill: oklch(0.282 0.091 268); --info-line: oklch(0.379 0.146 266);
+    --on-solid: #111;
+    --btn1-face: oklch(0.72 0.14 var(--accent-h)); --btn1-ink: #111;
+    --btn1-edge: oklch(0.5 0.16 var(--accent-h)); --btn1-edge-hover: oklch(0.6 0.16 var(--accent-h));
+    --btn1-ledge: oklch(0.42 0.13 var(--accent-h));
+    --btn2-face: hsl(235 8% 15%); --btn2-edge: hsl(230 8% 20%); --btn2-edge-hover: hsl(230 8% 40%); --btn2-ledge: #323232;
+    --btn-danger-edge: #c44003;
+    --kbd-edge: #5e6064;
+    --tooltip-bg: hsl(0 0% 90%); --tooltip-ink: hsl(0 0% 5%);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: hsl(240 8% 8%); --rail: hsl(240 8% 10%); --surface: hsl(235 8% 15%); --sunken: hsl(240 8% 10%); --sunken-2: #232429;
+  --field: hsl(235 8% 15%); --overlay: rgb(0 0 0 / 45%);
+  --ink: hsl(0 0% 90%); --ink-2: hsl(0 0% 75%); --muted: hsl(0 0% 62%); --faint: rgb(255 255 255 / 42%); --trace: rgb(255 255 255 / 25%);
+  --line: hsl(230 8% 20%); --line-strong: hsl(230 8% 40%); --line-bold: rgb(255 255 255 / 20%);
+  --hover: color-mix(in oklab, #fff 7.5%, transparent); --pressed: color-mix(in oklab, #fff 5%, transparent); --ring: color-mix(in oklab, #fff 10%, transparent);
+  --accent: oklch(0.72 0.14 var(--accent-h)); --accent-hover: oklch(0.8 0.12 var(--accent-h));
+  --success: oklch(0.792 0.209 152); --success-fill: color-mix(in oklab, oklch(0.266 0.065 153) 50%, transparent); --success-line: oklch(0.393 0.095 153); --success-solid: oklch(0.72 0.17 152);
+  --warning: oklch(0.852 0.199 92);  --warning-fill: oklch(0.286 0.066 54); --warning-line: oklch(0.421 0.095 58); --warning-solid: oklch(0.8 0.16 80);
+  --danger:  oklch(0.704 0.191 22);  --danger-fill: color-mix(in oklab, oklch(0.258 0.092 26) 50%, transparent); --danger-line: oklch(0.396 0.141 26); --danger-solid: oklch(0.68 0.2 25);
+  --info:    oklch(0.707 0.165 255); --info-fill: oklch(0.282 0.091 268); --info-line: oklch(0.379 0.146 266);
+  --on-solid: #111;
+  --btn1-face: oklch(0.72 0.14 var(--accent-h)); --btn1-ink: #111;
+  --btn1-edge: oklch(0.5 0.16 var(--accent-h)); --btn1-edge-hover: oklch(0.6 0.16 var(--accent-h));
+  --btn1-ledge: oklch(0.42 0.13 var(--accent-h));
+  --btn2-face: hsl(235 8% 15%); --btn2-edge: hsl(230 8% 20%); --btn2-edge-hover: hsl(230 8% 40%); --btn2-ledge: #323232;
+  --btn-danger-edge: #c44003;
+  --kbd-edge: #5e6064;
+  --tooltip-bg: hsl(0 0% 90%); --tooltip-ink: hsl(0 0% 5%);
+}
+
+/* Site hue tokens. Any element that sets --h (inline, from the host's hue assignment) gets its own
+   set. Hues come from src/host/hue.ts and stay inside 175-250 and 285-350, clear of red (27),
+   amber (66-92), green (150) and the accent (268). */
+[style*="--h"] {
+  --site-bg: oklch(0.95 0.035 var(--h));
+  --site-ink: oklch(0.42 0.11 var(--h));
+  --site-line: oklch(0.83 0.075 var(--h));
+  --site-solid: oklch(0.58 0.13 var(--h));
+  --site-wire: oklch(0.62 0.13 var(--h));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) [style*="--h"] {
+    --site-bg: oklch(0.3 0.05 var(--h)); --site-ink: oklch(0.86 0.08 var(--h));
+    --site-line: oklch(0.45 0.07 var(--h)); --site-solid: oklch(0.74 0.12 var(--h)); --site-wire: oklch(0.7 0.12 var(--h));
+  }
+}
+:root[data-theme="dark"] [style*="--h"] {
+  --site-bg: oklch(0.3 0.05 var(--h)); --site-ink: oklch(0.86 0.08 var(--h));
+  --site-line: oklch(0.45 0.07 var(--h)); --site-solid: oklch(0.74 0.12 var(--h)); --site-wire: oklch(0.7 0.12 var(--h));
+}
+
+/* Base */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 14px/1.5715 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+h1, h2, h3, h4 { font-family: var(--font-title); font-weight: 700; letter-spacing: -0.005em; }
+h1 { font-size: 1.75rem; font-weight: 800; }
+h2 { font-size: 1.3125rem; }
+h3 { font-size: 1rem; }
+b, strong { font-weight: 600; }
+button, input, textarea, select { font: inherit; color: inherit; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, pre { font-family: var(--font-mono); }
+mark { background: var(--mark); color: inherit; border-radius: 2px; }
+.dim { color: var(--faint); }
+.muted { color: var(--muted); }
+.label { font: 600 0.6875rem/1.5rem var(--font-sans); letter-spacing: 0.075em; text-transform: uppercase; color: var(--ink-2); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
+
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes sheet-in { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--warning-solid) 55%, transparent); } 100% { box-shadow: 0 0 0 8px transparent; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}

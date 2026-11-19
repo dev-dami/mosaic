@@ -31,19 +31,12 @@ async function waitFor(url) {
   throw new Error(`${url} did not start`);
 }
 
-const origin = (port) => `http://localhost:${port}`;
-/** A capability's block, wherever it sits in the runbook (its step, or Ready to publish). */
-const cap = (page, port, id) => page.locator(`.cap[data-origin="${origin(port)}"][data-capability="${id}"]`);
-
-async function connect(page, port) {
-  await page.getByLabel("Site URL").fill(origin(port));
-  await page.getByRole("button", { name: "Connect", exact: true }).click();
-  await page.locator(`.source.ready[data-origin="${origin(port)}"]`).waitFor();
-}
-
-function bridgeFrame(page, port) {
-  return page.frameLocator(`iframe.bridge[data-origin="${origin(port)}"]`);
-}
+// Selectors live in e2e/areas/*.cjs, one file per UI area, so a builder who changes an area's
+// markup edits only that file. The checks below, and what each one means, stay here.
+const { origin, capabilityCount, buildBadge, buildSame } = require("./areas/shell.cjs");
+const entry = require("./areas/entry.cjs");
+const runbook = require("./areas/runbook.cjs");
+const review = require("./areas/review.cjs");
 
 async function main() {
   await Promise.all([start("src/host/server.ts", BASE), start("providers/docs.ts", SITES.docs), start("providers/releases.ts", SITES.releases)]);
@@ -51,52 +44,52 @@ async function main() {
   const page = await browser.newPage();
   page.on("pageerror", (e) => console.error("page error:", e.message));
   await page.goto(HOST);
-  const build = page.getByTestId("build");
+  const build = buildBadge(page);
   await build.waitFor();
   const buildBefore = await build.textContent();
 
-  // 1. Two sites become controls: every capability in their manifests is in the runbook.
-  await connect(page, SITES.docs);
-  await connect(page, SITES.releases);
-  assert.equal(await page.locator(`.cap[data-origin="${origin(SITES.docs)}"]`).count(), 2);
-  assert.equal(await page.locator(`.cap[data-origin="${origin(SITES.releases)}"]`).count(), 3);
+  // 1. Two sites become controls: every capability in their manifests is in the workspace.
+  await entry.connect(page, SITES.docs);
+  await entry.connect(page, SITES.releases);
+  assert.equal(await capabilityCount(page, SITES.docs), 2);
+  assert.equal(await capabilityCount(page, SITES.releases), 3);
 
   // 2. A read runs at once through the bridge, and its output is rendered as content.
-  const draft = cap(page, SITES.releases, "draft-changelog");
-  await draft.getByLabel("Highlights (one per line)").fill("First public release\nNew plugin API");
-  await draft.getByRole("button", { name: "Draft changelog" }).click();
-  await draft.locator(".output li").getByText("New plugin API").waitFor();
+  const draft = runbook.readBlock(page, SITES.releases, "draft-changelog");
+  await runbook.fillInput(draft, "Highlights (one per line)", "First public release\nNew plugin API");
+  await runbook.run(draft, "Draft changelog");
+  await runbook.waitOutputItem(draft, "New plugin API");
 
   // 3. A write waits for the site's own prompt. Deny first.
   //    Its notes are bound to the changelog output, and the site's prompt shows that value.
-  const publish = cap(page, SITES.releases, "publish-release");
-  await publish.locator(`[data-flow-dst="${origin(SITES.releases)}#draft-changelog|notes"]`).waitFor();
-  await publish.getByRole("button", { name: "Publish release" }).click();
-  const prompt = bridgeFrame(page, SITES.releases);
-  await prompt.locator("dd").getByText("New plugin API").waitFor();
-  await prompt.getByRole("button", { name: "Deny" }).click();
-  await publish.locator(".output-error").getByText("the person denied this action").waitFor();
+  const publish = review.writeCard(page, SITES.releases, "publish-release");
+  await review.waitBoundTo(publish, `${origin(SITES.releases)}#draft-changelog|notes`);
+  await review.start(publish, "Publish release");
+  const prompt = review.sheet(page, SITES.releases);
+  await review.waitSheetValue(prompt, "New plugin API");
+  await review.deny(prompt);
+  await review.waitDenied(publish);
   let home = await (await fetch(`${origin(SITES.releases)}/`)).text();
   assert.ok(home.includes("No changes yet."), "a denied write must not reach the site");
 
   // 4. Approve. The button is disabled for a moment against tricked clicks.
-  await publish.getByRole("button", { name: "Publish release" }).click();
-  const approve = prompt.getByRole("button", { name: "Approve" });
+  await review.start(publish, "Publish release");
+  const approve = review.approveButton(prompt);
   await approve.waitFor();
   assert.equal(await approve.isDisabled(), true, "Approve starts disabled");
   await approve.click();
-  await publish.locator(".output").getByText("/releases/v1.0").waitFor();
+  await review.waitReceipt(publish, "/releases/v1.0");
   home = await (await fetch(`${origin(SITES.releases)}/`)).text();
   assert.ok(home.includes("publish-release"), "an approved write reaches the site");
 
   // 5. A site that did not exist when Mosaic loaded: start it now, connect, use it.
   await start("providers/announcer.ts", SITES.announcer);
-  await connect(page, SITES.announcer);
-  await page.getByLabel("Project", { exact: true }).fill("Mosaic");
-  const announce = cap(page, SITES.announcer, "draft-announcement");
-  await announce.getByRole("radio", { name: "excited" }).check();
-  await announce.getByRole("button", { name: "Draft announcement" }).click();
-  await announce.locator(".output").getByText("Mosaic v1.0 is here!").waitFor();
+  await entry.connect(page, SITES.announcer);
+  await entry.setDocProp(page, "Project", "Mosaic");
+  const announce = runbook.readBlock(page, SITES.announcer, "draft-announcement");
+  await runbook.chooseOption(announce, "excited");
+  await runbook.run(announce, "Draft announcement");
+  await runbook.waitOutput(announce, "Mosaic v1.0 is here!");
 
   // 6. The host page cannot call a site's API directly.
   const direct = await page.evaluate(async (url) => {
@@ -126,21 +119,21 @@ async function main() {
   evil.close();
 
   // 8. Data flows across sites: the changelog drafted on Releases is in the post drafted on Announcer.
-  await announce.locator(".output li").getByText("New plugin API").waitFor();
+  await runbook.waitOutputItem(announce, "New plugin API");
 
   // 9. The flow continues to a third write: the scheduled post takes the drafted text, and the
   //    announcer's own prompt shows it before anything is posted.
-  const schedule = cap(page, SITES.announcer, "schedule-announcement");
-  await schedule.locator(`[data-flow-dst="${origin(SITES.announcer)}#draft-announcement|text"]`).waitFor();
-  await schedule.getByRole("button", { name: "Schedule announcement" }).click();
-  const announcerPrompt = bridgeFrame(page, SITES.announcer);
-  await announcerPrompt.locator("dd").getByText("Mosaic v1.0 is here!").waitFor();
-  await announcerPrompt.getByRole("button", { name: "Approve" }).click();
-  await schedule.locator(".output").getByText("/posts/post-1").waitFor();
+  const schedule = review.writeCard(page, SITES.announcer, "schedule-announcement");
+  await review.waitBoundTo(schedule, `${origin(SITES.announcer)}#draft-announcement|text`);
+  await review.start(schedule, "Schedule announcement");
+  const announcerPrompt = review.sheet(page, SITES.announcer);
+  await review.waitSheetValue(announcerPrompt, "Mosaic v1.0 is here!");
+  await review.approveButton(announcerPrompt).click();
+  await review.waitReceipt(schedule, "/posts/post-1");
 
   // 10. Connecting three sites, one of them new, did not change Mosaic: same source fingerprint.
   assert.equal(await build.textContent(), buildBefore, "Mosaic's build must not change when a site is connected");
-  await page.locator(".build.same").waitFor();
+  await buildSame(page).waitFor();
 
   await page.screenshot({ path: "e2e/last-run.png", fullPage: true });
   console.log("e2e: all 10 checks passed");

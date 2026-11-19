@@ -1,6 +1,7 @@
 import Ajv from "ajv";
 import { MANIFEST_PATH, type Capability, type Manifest } from "../src/protocol";
 import bridgePage from "./bridge.html";
+import { renderHome } from "./home";
 
 export type CapabilityImpl = Capability & { run: (input: any) => unknown };
 
@@ -24,7 +25,7 @@ export type BridgeConfig = {
 
 const DEFAULT_LOOK: SiteLook = { scheme: "light", accent: "#2f6fde", font: "sans" };
 
-type Activity = { at: string; capability: string; input: unknown };
+export type Activity = { at: string; capability: string; input: unknown };
 
 const BRIDGE_PATH = "/mosaic/bridge";
 
@@ -73,29 +74,9 @@ export function createSite(def: SiteDefinition, origin: string, allowedHosts: st
     return Response.json(output);
   }
 
-  const look = def.look ?? DEFAULT_LOOK;
-  function homePage(): Response {
-    const rows = activity
-      .map((a) => `<li><time>${a.at}</time> <b>${escapeHtml(a.capability)}</b> <code>${escapeHtml(JSON.stringify(a.input))}</code></li>`)
-      .join("");
-    const caps = def.capabilities.map((c) => `<li><b>${escapeHtml(c.title)}</b> (${c.side_effects}): ${escapeHtml(c.description)}</li>`).join("");
-    return new Response(
-      `<!doctype html><meta charset="utf-8"><title>${escapeHtml(def.name)}</title>
-<link rel="mosaic-capabilities" href="${MANIFEST_PATH}">
-<style>body{font:15px/1.55 system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 16px;background:${look.scheme === "dark" ? "#141218" : "#fbfaf7"};color:${look.scheme === "dark" ? "#ecebf2" : "#1d1c1a"}}h1{color:${look.accent}}code{font-size:12px;word-break:break-all}li{margin:6px 0}</style>
-<h1>${escapeHtml(def.name)}</h1><p>${escapeHtml(def.description)}</p>
-<p><small>Fictional demo site. Nothing leaves this server.</small></p>
-<h2>Capabilities</h2><ul>${caps}</ul>
-<h2>Activity</h2><ul id="activity">${rows || "<li>No changes yet.</li>"}</ul>`,
-      { headers: { "content-type": "text/html; charset=utf-8" } },
-    );
-  }
+  const homePage = () => renderHome(def, def.look ?? DEFAULT_LOOK, activity);
 
   return { manifest, bridgeConfig, handleApi, homePage, activity };
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
 
 export function serveSite(def: SiteDefinition) {
