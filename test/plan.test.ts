@@ -61,7 +61,8 @@ describe("outcome plan", () => {
   test("a launch keeps every step of a release in dependency order", () => {
     const p = plan("Launch Lumen v1.0");
     expect(p.hidden.size).toBe(0);
-    expect(p.siteOrder).toEqual(order);
+    // The docs preview's summary reads the changelog's notes, so Releases comes first.
+    expect(p.siteOrder).toEqual([R, D, A]);
   });
 
   test("an empty outcome or one that matches nothing keeps everything", () => {
@@ -70,22 +71,25 @@ describe("outcome plan", () => {
     expect(analyzeOutcome("Water the plants", refs).mode).toBe("all");
   });
 
-  test("a docs outcome picks only the docs site and puts it first", () => {
+  test("a docs outcome pulls in the notes it reads and keeps sites it names nothing on whole", () => {
     const p = plan("Update the docs for v2.1", refs, [R, A, D]);
-    expect(shown(p)).toEqual(["preview-docs-update", "apply-docs-update"]);
-    expect(p.siteOrder[0]).toBe(D);
+    expect(analyzeOutcome("Update the docs for v2.1", refs).picked.get(capKey(R, "draft-changelog"))?.kind).toBe("feeds");
+    // Releases is narrowed to what the docs read; Announcer is named by nothing, so it stays whole.
+    expect([...p.hidden]).toEqual([capKey(R, "publish-release")]);
+    expect(p.siteOrder).toEqual([R, D, A]);
   });
 
   test("an announcement pulls in the changelog it reads from, which comes first", () => {
     const p = plan("Announce Atlas v3.0");
-    expect(shown(p)).toEqual(["list-releases", "draft-changelog", "draft-announcement", "schedule-announcement"]);
+    // Docs is named by nothing, so it stays whole; Releases is narrowed to what the post reads.
+    expect(shown(p)).toEqual(["preview-docs-update", "apply-docs-update", "list-releases", "draft-changelog", "draft-announcement", "schedule-announcement"]);
     expect(p.siteOrder.indexOf(R)).toBeLessThan(p.siteOrder.indexOf(A));
     expect(p.siteOrder.at(-1)).toBe(D);
   });
 
   test("mention order wins where data allows: docs before the announcement", () => {
     const p = plan("Update docs, then announce v2.0");
-    expect(p.siteOrder).toEqual([D, R, A]);
+    expect(p.siteOrder).toEqual([R, D, A]);
     const q = plan("Announce v2.0 and update docs");
     expect(q.siteOrder.indexOf(D)).toBe(2);
   });
@@ -96,6 +100,19 @@ describe("outcome plan", () => {
       expect([...p.siteOrder].sort()).toEqual([...order].sort());
       expect(plan(o)).toEqual(p);
     }
+  });
+
+  test("a newly connected site the outcome names nothing on adds all its steps, last", () => {
+    const X = "https://stock.example";
+    const extra: CapRef[] = [
+      { key: capKey(X, "count-stock"), origin: X, siteName: "Stock", order: 900, cap: cap("count-stock", "Count stock", "Count units on hand.", "read", { sku: S() }) },
+      { key: capKey(X, "reserve-stock"), origin: X, siteName: "Stock", order: 901, cap: cap("reserve-stock", "Reserve stock", "Hold units.", "write", { sku: S() }) },
+    ];
+    const p = plan("Announce Atlas v3.0", [...refs, ...extra], [...order, X]);
+    expect(p.hidden.has(capKey(X, "count-stock"))).toBe(false);
+    expect(p.hidden.has(capKey(X, "reserve-stock"))).toBe(false);
+    expect(p.hidden.has(capKey(R, "publish-release"))).toBe(true);
+    expect(p.siteOrder.slice(0, 2)).toEqual([R, A]);
   });
 
   test("an unknown site with no title match falls back to descriptions", () => {

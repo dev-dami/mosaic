@@ -159,6 +159,9 @@
 }
 .plan-stop-btn:hover { border-color: var(--site-solid); translate: 0 -1px; box-shadow: 0 3px 0 var(--site-line); }
 .plan-stop-btn:active { translate: 0 2px; box-shadow: none; transition: translate var(--t-fast); }
+/* A site the outcome names nothing on: kept whole, drawn quieter so the named route reads first. */
+.plan-stop.unnamed .plan-stop-btn { border-style: dashed; box-shadow: none; color: var(--ink-2); }
+.plan-stop.unnamed .plan-stop-btn:hover { box-shadow: 0 2px 0 var(--site-line); }
 .plan-n { display: grid; place-items: center; min-width: 20px; height: 20px; border-radius: 50%; font: 800 11px var(--font-title); color: var(--site-ink); background: var(--site-bg); }
 .plan-titles { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
 .plan-plus { font: 700 11px var(--font-title); color: var(--muted); padding: 0 5px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--line); }

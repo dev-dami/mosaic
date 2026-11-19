@@ -4,7 +4,7 @@
 // in red with what happened and what to do. Nothing here is faked: every row mirrors a stage the
 // store reported (state.trace).
 import NumberFlow from "@number-flow/react";
-import { ArrowRightIcon, CheckIcon, MagnifyingGlassIcon, PencilSimpleIcon, PlugsConnectedIcon, PlusIcon, ProhibitIcon, TextAlignLeftIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, CheckIcon, MagnifyingGlassIcon, PaperPlaneTiltIcon, PencilSimpleIcon, PlugsConnectedIcon, PlusIcon, ProhibitIcon, TextAlignLeftIcon } from "@phosphor-icons/react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Command } from "cmdk";
 import { MotionConfig, motion } from "motion/react";
@@ -13,6 +13,7 @@ import { tinykeys } from "tinykeys";
 import { MANIFEST_PATH } from "../../protocol";
 import { capAnchor, hostOf, monogram, type CapRef } from "../doc";
 import { Button, Kbd, Monogram, Origin, Tag, useHueStyle } from "../primitives";
+import { openReview } from "../review";
 import { useMosaic, type Trace } from "../state";
 import { checkRows, Checklist, isDone, refusalOf } from "./trace";
 import { asOrigin, entryUi, useEntryUi } from "./ui";
@@ -166,6 +167,30 @@ export function Palette() {
                         {pendingSuggestions.map((o) => (
                           <ConnectRow key={o} origin={o} suggested onSelect={() => connect(o)} />
                         ))}
+                      </Command.Group>
+                    )}
+                    {model.pendingWrites.length > 0 && (
+                      <Command.Group heading="Publish">
+                        <Command.Item
+                          value="review changes"
+                          keywords={["Review changes", "", "publish approve writes", ""]}
+                          onSelect={() => {
+                            entryUi.closePalette();
+                            openReview();
+                          }}
+                          className="palette-item"
+                        >
+                          <span className="item-icon">
+                            <PaperPlaneTiltIcon />
+                          </span>
+                          <span className="item-main">
+                            <span className="item-title">
+                              Review {model.pendingWrites.length} {model.pendingWrites.length === 1 ? "change" : "changes"}
+                            </span>
+                            <span className="item-sub">Each one is approved on its own site</span>
+                          </span>
+                          <Kbd keys={["mod", "enter"]} />
+                        </Command.Item>
                       </Command.Group>
                     )}
                     {model.siteOrder.map((o) => (

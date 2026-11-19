@@ -7,7 +7,7 @@ import { hueOf } from "./doc";
 
 /** Inclusive hue bands a site may use, in degrees. */
 export const SITE_HUE_BANDS: readonly (readonly [number, number])[] = [
-  [175, 250],
+  [182, 250],
   [285, 350],
 ];
 
@@ -15,15 +15,16 @@ export const SITE_HUE_BANDS: readonly (readonly [number, number])[] = [
 export const RESERVED_HUES = [
   { name: "danger", from: 0, to: 45 },
   { name: "warning", from: 46, to: 110 },
-  { name: "success", from: 111, to: 174 },
+  { name: "success", from: 111, to: 181 },
   { name: "accent", from: 251, to: 284 },
   { name: "danger", from: 351, to: 360 },
 ] as const;
 
 const WIDTHS = SITE_HUE_BANDS.map(([a, b]) => b - a);
 const SPAN = WIDTHS.reduce((s, w) => s + w, 0);
-/** Two connected sites keep at least this many degrees apart when possible. */
-export const MIN_SITE_HUE_GAP = 22;
+/** Two connected sites keep at least this many degrees apart when possible: wide enough that three
+ * sites read as three colours (violet, magenta, teal), not three shades of one. */
+export const MIN_SITE_HUE_GAP = 34;
 
 const norm = (h: number) => ((h % 360) + 360) % 360;
 

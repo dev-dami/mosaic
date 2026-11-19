@@ -58,8 +58,8 @@ All in `src/host/theme.css`, light on `:root`, dark under both `prefers-color-sc
 **Status** is separate from the accent and from site hues: `--success*` (green 150), `--warning*`
 (amber 66-92), `--danger*` (red 27), `--info*`. Each has text, `-fill`, `-line` and `-solid`.
 
-**Site hues** come from `src/host/hue.ts`: the host hashes the origin into two bands, 175-250 and
-285-350, and keeps connected sites at least 22 degrees apart. A hue picker snaps any choice back into
+**Site hues** come from `src/host/hue.ts`: the host hashes the origin into two bands, 182-250 and
+285-350, and keeps connected sites at least 34 degrees apart (three sites always, more when the bands allow). A hue picker snaps any choice back into
 the bands (`actions.setHue`). An element that sets `--h` gets `--site-bg`, `--site-ink`,
 `--site-line`, `--site-solid`, `--site-wire`. Site colour appears on provenance only (monogram, pill,
 token, left ribbon of a block, wire), never as a fill behind content.

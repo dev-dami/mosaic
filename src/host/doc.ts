@@ -192,11 +192,31 @@ export function autoBinding(target: CapRef, field: string, all: CapRef[], docPro
     const twin = reads.find((r) => r.origin === target.origin && field in props(r.cap.input_schema));
     if (twin) return { kind: "mirror", cap: twin.key, field };
   }
-  const producers = reads
-    .filter((r) => outputFields(r.cap).includes(field))
-    .sort((a, b) => Number(b.origin === target.origin) - Number(a.origin === target.origin) || a.order - b.order);
-  const producer = producers[0];
-  return producer ? { kind: "output", cap: producer.key, field } : null;
+  const byName = (name: string) =>
+    reads
+      .filter((r) => outputFields(r.cap).includes(name))
+      .sort((a, b) => Number(b.origin === target.origin) - Number(a.origin === target.origin) || a.order - b.order)[0];
+  const producer = byName(field);
+  if (producer) return { kind: "output", cap: producer.key, field };
+  // No output has the field's own name: try the few generic words for "what changed", in order.
+  for (const alias of aliasesOf(field)) {
+    const p = byName(alias);
+    if (p) return { kind: "output", cap: p.key, field: alias };
+  }
+  return null;
+}
+
+/**
+ * Field names that mean the same thing across sites, most specific first. Generic vocabulary, not
+ * tied to any site; used only when no output has the exact name. Kept small on purpose: a wrong
+ * automatic binding costs more than one click on a suggestion.
+ */
+const ALIASES: string[][] = [["summary", "changes", "notes", "release_notes", "changelog"]];
+
+function aliasesOf(field: string): string[] {
+  const f = field.toLowerCase();
+  const group = ALIASES.find((g) => g.includes(f));
+  return group ? group.filter((x) => x !== f) : [];
 }
 
 export type Resolved =

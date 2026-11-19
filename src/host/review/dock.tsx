@@ -94,7 +94,10 @@ function Dock() {
           e.preventDefault();
           toggleReview();
         },
-        Escape: () => {
+        Escape: (e) => {
+          // A Radix layer on top (the ⌘K palette, a popover) handles Esc first and marks the event
+          // handled; that Esc closes only the layer, not the dock under it.
+          if (e.defaultPrevented) return;
           if (latest.current.open && !latest.current.confirming) closeReview();
         },
       }),

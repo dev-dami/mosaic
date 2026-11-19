@@ -160,12 +160,15 @@ function PlanLine() {
             const mine = visible.filter((r) => r.origin === o && (r.cap.side_effects === "write" || Object.keys(r.cap.input_schema.properties ?? {}).length > 0));
             const first = mine[0] ?? visible.find((r) => r.origin === o)!;
             const all = mine.length ? mine : [first];
+            // Connected, but the outcome names nothing on it: its steps stay, after the named ones.
+            const unnamed = analysis.mode === "matched" && !model.refs.some((r) => r.origin === o && analysis.picked.has(r.key));
             return (
-              <motion.li key={o} layout className="plan-stop" style={hue(o)} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ type: "spring", stiffness: 500, damping: 34 }}>
+              <motion.li key={o} layout className={`plan-stop ${unnamed ? "unnamed" : ""}`} style={hue(o)} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ type: "spring", stiffness: 500, damping: 34 }}>
                 <Tooltip
                   content={
                     <>
                       Step {model.stepOf.get(o)} on {conn.site.site.name}: {all.map((r) => r.cap.title).join(", then ")}
+                      {unnamed && <>. The outcome names nothing here; its steps stay because you connected it.</>}
                     </>
                   }
                 >

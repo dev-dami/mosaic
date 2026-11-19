@@ -247,3 +247,6 @@ iframe.bridge.visible {
   .act-table th:nth-child(2), .act-table td:nth-child(2) { display: none; }
   .act-kind { display: none; }
 }
+
+/* In the review dock a write's bound values get room to show whole: this is the last look before the site's prompt. */
+.rv-dock .fields.compact .bound-content { max-height: 168px; }

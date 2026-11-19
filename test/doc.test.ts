@@ -81,6 +81,14 @@ describe("data flow", () => {
     expect(autoBinding(schedule, "text", all, docProps)).toEqual({ kind: "output", cap: announce.key, field: "text" });
   });
 
+  test("a 'what changed' field takes notes when no output has its own name", () => {
+    const D = "http://docs.example";
+    const preview = ref(D, cap("preview", "read", { summary: { type: "string" } }), 9);
+    expect(autoBinding(preview, "summary", [...all, preview], docProps)).toEqual({ kind: "output", cap: draft.key, field: "notes" });
+    // An exact name still wins, and unrelated names never bind.
+    expect(autoBinding(preview, "colour", [...all, preview], docProps)).toBeNull();
+  });
+
   test("a write mirrors the same field of a read on its own site", () => {
     const preview = ref(R, cap("preview", "read", { summary: { type: "string" } }), 4);
     const apply = ref(R, cap("apply", "write", { summary: { type: "string" } }), 5);

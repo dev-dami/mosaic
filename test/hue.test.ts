@@ -17,9 +17,15 @@ describe("site hues", () => {
   });
 
   test("keeps apart from hues already taken", () => {
-    const taken: number[] = [];
-    for (const o of origins.slice(0, 5)) taken.push(siteHue(o, taken));
-    for (let i = 0; i < taken.length; i++) for (let j = i + 1; j < taken.length; j++) expect(hueDistance(taken[i]!, taken[j]!)).toBeGreaterThanOrEqual(MIN_SITE_HUE_GAP);
+    const minGap = (t: number[]) => Math.min(...t.flatMap((a, i) => t.slice(i + 1).map((b) => hueDistance(a, b))));
+    for (let s = 0; s < 40; s++) {
+      const taken: number[] = [];
+      for (const o of origins.slice(s * 5, s * 5 + 5)) taken.push(siteHue(o, taken));
+      // Three sites always get the full gap; the safe bands are only 140 degrees wide, so five
+      // sites share it but stay clearly apart.
+      expect(minGap(taken.slice(0, 3))).toBeGreaterThanOrEqual(MIN_SITE_HUE_GAP);
+      expect(minGap(taken)).toBeGreaterThanOrEqual(15);
+    }
   });
 
   test("a picked hue snaps out of a reserved band", () => {

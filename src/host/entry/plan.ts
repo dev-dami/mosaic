@@ -12,7 +12,9 @@
 //   4. Anything a picked capability reads from (the same automatic bindings the document uses) is
 //      picked too, until nothing changes. Context reads (no input) follow their site.
 //   5. Nothing matched, or no outcome: every capability stays in. Mosaic never hides everything.
-//   6. Sites are ordered by where the outcome mentions them, but a site that reads another site's
+//   6. A site the outcome picks nothing on keeps all its steps. The person connected it, so the
+//      plan narrows inside the sites the outcome names and never drops a whole site.
+//   7. Sites are ordered by where the outcome mentions them, but a site that reads another site's
 //      output always comes after it. Sites with nothing picked go last.
 import { autoBinding, parseOutcome, type CapKey, type CapRef } from "../doc";
 
@@ -28,7 +30,7 @@ export type PlanInput = {
 export type Plan = {
   /** Origins in the order their steps appear. Must contain each origin of `siteOrder` exactly once. */
   siteOrder: string[];
-  /** Capabilities the outcome does not need. They stay connected but get no step block. */
+  /** Capabilities the outcome does not need, only ever on sites it picked something on. */
   hidden: Set<CapKey>;
 };
 
@@ -177,7 +179,8 @@ export function planWorkspace(input: PlanInput): Plan {
   const a = analyzeOutcome(outcome, refs);
   if (a.mode === "all") return { siteOrder, hidden: new Set() };
 
-  const hidden = new Set(refs.filter((r) => !a.picked.has(r.key)).map((r) => r.key));
+  const named = new Set(refs.filter((r) => a.picked.has(r.key)).map((r) => r.origin));
+  const hidden = new Set(refs.filter((r) => named.has(r.origin) && !a.picked.has(r.key)).map((r) => r.key));
   const deps = siteDeps(refs, (r) => !hidden.has(r.key), outcome);
   const given = new Map(siteOrder.map((o, i) => [o, i]));
   const rank = (o: string) => [a.firstMention.get(o) ?? Number.POSITIVE_INFINITY, given.get(o) ?? 0] as const;
