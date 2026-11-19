@@ -136,16 +136,20 @@ function Dock() {
     wasOpen.current = false;
   }, [open, nonce]);
 
-  // Close once the last write is published, so the receipts in the document are what's left.
-  const lastPending = useRef(pending.length);
+  // Fold back to the bar once a write is published (the tile turns green, the receipt lands in the
+  // document), so the dock doesn't sit over the page. "Send all" keeps it open until it finishes.
+  // A denied write keeps it open: its card says what happened and offers to ask again.
+  const doneCount = allWrites.filter((w) => state.runs[w.key]?.status === "done").length;
+  const lastDone = useRef(doneCount);
   useEffect(() => {
-    if (lastPending.current > 0 && pending.length === 0 && planned.length > 0) {
-      const t = setTimeout(closeReview, 900);
-      lastPending.current = 0;
+    if (state.sending) return;
+    if (doneCount > lastDone.current) {
+      lastDone.current = doneCount;
+      const t = setTimeout(closeReview, 650);
       return () => clearTimeout(t);
     }
-    lastPending.current = pending.length;
-  }, [pending.length, planned.length]);
+    lastDone.current = doneCount;
+  }, [doneCount, state.sending]);
 
   if (!has) return null;
 
