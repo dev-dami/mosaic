@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mosaic bridge</title>
+    <style>
+      body { font: 15px system-ui, sans-serif; margin: 0; padding: 20px; background: #fff; color: #111; }
+      .card { max-width: 520px; margin: 0 auto; }
+      h1 { font-size: 18px; margin: 0 0 8px; }
+      pre { background: #f4f4f5; padding: 12px; border-radius: 8px; max-height: 240px; overflow: auto; font-size: 12px; white-space: pre-wrap; }
+      .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+      button { font: inherit; padding: 8px 16px; border-radius: 8px; border: 1px solid #d4d4d8; background: #fff; cursor: pointer; }
+      button.approve { background: #111; color: #fff; border-color: #111; }
+      button:disabled { opacity: 0.4; cursor: default; }
+      .who { color: #52525b; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <div id="root" class="card"></div>
+    <script type="module" src="./bridge.ts"></script>
+  </body>
+</html>

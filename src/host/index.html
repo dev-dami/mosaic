@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mosaic</title>
+    <style>
+      :root {
+        --bg: #fafaf9; --panel: #fff; --ink: #18181b; --muted: #71717a; --line: #e4e4e7;
+        --accent: #4f46e5; --read: #0f766e; --write: #b45309; --bad: #b91c1c;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root { --bg: #0c0c0e; --panel: #17171a; --ink: #f4f4f5; --muted: #a1a1aa; --line: #2a2a30;
+          --accent: #818cf8; --read: #5eead4; --write: #fbbf24; --bad: #f87171; }
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 system-ui, sans-serif; }
+      .shell { max-width: 1200px; margin: 0 auto; padding: 24px 16px 64px; }
+      header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+      .brand { font-weight: 700; font-size: 22px; letter-spacing: -0.02em; }
+      .meta { color: var(--muted); display: flex; gap: 8px; align-items: center; }
+      .connect { display: flex; gap: 8px; }
+      .connect input { flex: 1; min-width: 0; }
+      input, select, textarea { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; }
+      textarea { resize: vertical; }
+      button { font: inherit; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #fff; padding: 8px 14px; cursor: pointer; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      button.ghost { background: none; border: none; color: var(--muted); font-size: 20px; padding: 0 4px; }
+      .error { color: var(--bad); }
+      .empty, .muted, .desc, .origin { color: var(--muted); }
+      .origin { font-size: 12px; font-family: ui-monospace, monospace; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin-top: 20px; }
+      .site { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+      .site-head { display: flex; align-items: flex-start; gap: 8px; }
+      .site-head > div { flex: 1; }
+      h2 { font-size: 16px; margin: 0; }
+      h3 { font-size: 14px; margin: 0; }
+      .desc { margin: 0; }
+      .badge { font-size: 11px; border-radius: 999px; padding: 2px 8px; border: 1px solid currentColor; white-space: nowrap; }
+      .badge.read, .badge.ready { color: var(--read); }
+      .badge.write, .badge.connecting { color: var(--write); }
+      .badge.failed { color: var(--bad); }
+      .widget { border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+      .widget-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+      .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+      .field.check { display: flex; align-items: center; gap: 8px; }
+      .field.check input { width: auto; }
+      .field.check label { margin: 0; }
+      .req { color: var(--bad); }
+      .output { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; overflow-x: auto; }
+      .output pre { margin: 0; white-space: pre-wrap; font-size: 12px; }
+      dl { margin: 0; } dt { font-size: 11px; color: var(--muted); } dd { margin: 0 0 6px; }
+      ol { margin: 0; padding-left: 18px; }
+      iframe.bridge { position: fixed; width: 0; height: 0; border: 0; visibility: hidden; }
+      iframe.bridge.visible { visibility: visible; z-index: 20; left: 50%; top: 50%; transform: translate(-50%, -50%);
+        width: min(560px, calc(100vw - 32px)); height: min(440px, calc(100vh - 32px)); border-radius: 14px; box-shadow: 0 20px 60px rgb(0 0 0 / 0.35); background: #fff; }
+      .backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / 0.45); z-index: 10; }
+      .log { margin-top: 32px; }
+      .log ul { list-style: none; padding: 0; margin: 8px 0 0; color: var(--muted); }
+      .log time { font-family: ui-monospace, monospace; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./app.tsx"></script>
+  </body>
+</html>
