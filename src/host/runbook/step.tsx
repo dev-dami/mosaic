@@ -1,151 +1,312 @@
-// A step: one site's part of the runbook, with its context reads, its reads that take input,
-// and a line pointing to its writes (which the review area shows).
-import { PlayIcon } from "@phosphor-icons/react";
-import { useEffect, useMemo, useState } from "react";
+// A step: one site's part of the runbook. A header (number key, title, site chip with details),
+// the site's context reads as one quiet strip, each read that takes input as a block, and a line
+// pointing to the site's writes (which the review area shows).
+//
+// A read block puts the inputs in one sentence of chips and the Run button on the same line. Only
+// the fields that still need the person open as rows; "Edit" opens all of them. Once it runs, the
+// output is the content of the block, and the "feeds" row says which later steps take it.
+import { ArrowBendDownRightIcon, ArrowRightIcon, CaretRightIcon, CheckIcon, PlayIcon, WarningIcon } from "@phosphor-icons/react";
+import { AnimatePresence } from "motion/react";
+import * as m from "motion/react-m";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { compileForm } from "../../form";
 import { capAnchor, hostOf, outputFields, type CapRef } from "../doc";
-import { Button, Monogram, Provenance, useHueStyle } from "../primitives";
+import { Banner, Button, Monogram, useHueStyle } from "../primitives";
 import { hasInputs, useMosaic, type Run } from "../state";
-import { InputFields, SummaryItem } from "./fields";
-import { OutputView, RawOutput, summarize } from "./output";
+import { SiteDetails } from "./details";
+import { fieldId, InputFields, InputSentence, needsPerson } from "./fields";
+import { OutputView, summarize } from "./output";
+
+const two = (n: number) => String(n).padStart(2, "0");
+
+type StepStatus = "idle" | "running" | "done" | "error";
 
 export function Step({ origin, number }: { origin: string; number: number }) {
   const { state, model } = useMosaic();
   const hue = useHueStyle();
   const conn = model.connFor(origin)!;
   const fresh = state.fresh.includes(origin);
-  const mine = model.refs.filter((r) => r.origin === origin && !model.hidden.has(r.key));
+  const all = model.refs.filter((r) => r.origin === origin);
+  const mine = all.filter((r) => !model.hidden.has(r.key));
+  const hiddenReads = all.filter((r) => model.hidden.has(r.key) && r.cap.side_effects === "read");
   const context = mine.filter((r) => r.cap.side_effects === "read" && !hasInputs(r));
   const reads = mine.filter((r) => r.cap.side_effects === "read" && hasInputs(r));
   const writes = mine.filter((r) => r.cap.side_effects === "write");
-  const lead = reads[0];
+  const lead = reads[0] ?? context[0];
   const states = reads.map((r) => state.runs[r.key]?.status ?? "idle");
-  const status = states.includes("running") ? "running" : states.includes("error") ? "error" : states.length && states.every((s) => s === "done") ? "done" : "idle";
-  const publishNumber = model.siteOrder.length + 1;
+  const status: StepStatus = states.includes("running") ? "running" : states.includes("error") ? "error" : states.length && states.every((s) => s === "done") ? "done" : "idle";
+  const name = conn.site.site.name;
   return (
-    <section className={`step ${fresh ? "fresh" : ""}`} data-origin={origin} style={hue(origin)} aria-labelledby={`step-${number}`}>
-      <div className="step-gutter">
-        <span className={`step-num ${status}`}>{status === "done" ? <span aria-label={`Step ${number} done`}>✓</span> : number}</span>
-      </div>
+    <m.section
+      layout="position"
+      transition={{ layout: { duration: 0.2, ease: [0.2, 0.8, 0.2, 1] } }}
+      className={`step ${status} ${fresh ? "fresh" : ""}`}
+      data-origin={origin}
+      style={hue(origin)}
+      aria-labelledby={`step-${number}`}
+    >
       <header className="step-head">
-        <h2 id={`step-${number}`}>{lead?.cap.title ?? conn.site.site.name}</h2>
-        <Provenance name={conn.site.site.name} origin={origin} />
-        {fresh && <span className="new-pill">New · built from its manifest</span>}
+        <span className={`step-key ${status}`} aria-label={`Step ${number}${status === "done" ? ", done" : status === "running" ? ", running" : status === "error" ? ", failed" : ""}`}>
+          {two(number)}
+          {status === "done" && (
+            <span className="step-key-badge" aria-hidden="true">
+              <CheckIcon size={9} weight="bold" />
+            </span>
+          )}
+        </span>
+        <div className="step-titles">
+          <h2 id={`step-${number}`}>{lead?.cap.title ?? name}</h2>
+          {lead && <p className="step-desc">{lead.cap.description}</p>}
+        </div>
+        {fresh && <span className="new-pill">New</span>}
+        <SiteDetails origin={origin} name={name} refs={all} />
       </header>
-      <div className="step-gap" />
-      {conn.status === "failed" && <p className="block-error">This site refused Mosaic: {conn.failure}</p>}
 
-      {context.map((r) => (
-        <ContextLine key={r.key} r={r} run={state.runs[r.key]} />
-      ))}
+      {conn.status === "failed" && (
+        <Banner tone="danger" icon={<WarningIcon />} className="step-banner">
+          {hostOf(origin)} refused Mosaic: {conn.failure}
+        </Banner>
+      )}
+
+      {context.length > 0 && (
+        <div className="context-strip">
+          {context.map((r) => (
+            <ContextLine key={r.key} r={r} run={state.runs[r.key]} />
+          ))}
+        </div>
+      )}
       {reads.map((r, i) => (
         <ReadBlock key={r.key} r={r} showTitle={i > 0} />
       ))}
-      {reads.length === 0 && writes.length > 0 && <p className="step-note">This site only offers changes. They are listed under Ready to publish.</p>}
+      {reads.length === 0 && writes.length > 0 && <p className="step-note">{name} only offers changes. They wait in the review bar until you approve them on {hostOf(origin)}.</p>}
       {writes.length > 0 && (
         <p className="then">
-          <span className="diamond" aria-hidden="true" />
-          Then {writes.map((w) => w.cap.title.toLowerCase()).join(" and ")}, in step {publishNumber} after your approval on {hostOf(origin)}.
+          <ArrowBendDownRightIcon size={14} aria-hidden="true" />
+          <span>Later:</span>
+          {writes.map((w, i) => (
+            <span key={w.key}>
+              <a href={`#${capAnchor(w.key)}`} className="then-link">
+                {w.cap.title.toLowerCase()}
+              </a>
+              {i < writes.length - 1 ? " and " : ""}
+            </span>
+          ))}
+          <span className="then-host">after you approve on {hostOf(origin)}</span>
         </p>
       )}
-    </section>
+      {hiddenReads.length > 0 && (
+        <p className="step-hidden">
+          Not needed for this outcome:{" "}
+          {hiddenReads.map((r, i) => (
+            <span key={r.key} className="cap cap--hidden" data-capability={r.cap.id} data-origin={r.origin} id={capAnchor(r.key)}>
+              {r.cap.title}
+              {i < hiddenReads.length - 1 ? ", " : ""}
+            </span>
+          ))}
+        </p>
+      )}
+    </m.section>
   );
 }
 
 /** A read that needs no input: run at once, kept to one line, expandable. */
 function ContextLine({ r, run }: { r: CapRef; run?: Run }) {
   const [open, setOpen] = useState(false);
+  const done = run?.status === "done";
   return (
-    <div className="context cap" data-capability={r.cap.id} data-origin={r.origin} id={capAnchor(r.key)}>
-      <button type="button" className="context-toggle" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+    <div className={`context cap ${open ? "open" : ""}`} data-capability={r.cap.id} data-origin={r.origin} id={capAnchor(r.key)}>
+      <button type="button" className="context-toggle" onClick={() => setOpen((o) => !o)} aria-expanded={open} disabled={!done}>
+        <CaretRightIcon size={12} className="chev" aria-hidden="true" />
         <span className="ctx-title">{r.cap.title}</span>
-        <span className="ctx-sum">{run?.status === "done" ? summarize(run.output) : run?.status === "error" ? run.message : run?.status === "running" ? "Reading…" : "Not read yet"}</span>
-        <span className="chev" aria-hidden="true">
-          {open ? "−" : "+"}
-        </span>
+        <span className="ctx-sum">{done ? summarize(run.output) : run?.status === "error" ? run.message : run?.status === "running" ? "Reading…" : "Not read yet"}</span>
       </button>
-      {open && run?.status === "done" && (
-        <div className="output context-out">
-          <OutputView value={run.output} origin={r.origin} />
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {open && done && (
+          <m.div className="output context-out" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}>
+            <OutputView value={run.output} origin={r.origin} />
+          </m.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-/** A read that takes input: its fields, its run button, then its output as content. */
+/** A read that takes input: a sentence of inputs and Run, the fields that need the person, then the output. */
 function ReadBlock({ r, showTitle }: { r: CapRef; showTitle: boolean }) {
   const { state, model, actions } = useMosaic();
-  const hue = useHueStyle();
   const fields = useMemo(() => compileForm(r.cap.input_schema), [r.cap]);
   const run = state.runs[r.key] ?? { status: "idle" };
   const ready = model.readyOf(r.origin);
   const host = hostOf(r.origin);
-  const [schemaOpen, setSchemaOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [focusField, setFocusField] = useState<string | null>(null);
+  const blockRef = useRef<HTMLElement>(null);
+
+  // Fields that still need the person open as rows, and stay open while they type (so a row does
+  // not jump into the sentence after the first key). Binding a field closes its row.
+  const needing = fields.filter((f) => needsPerson(f, model.bindingFor(r.key, f.key), state.manual[r.key]?.[f.key] ?? f.initial)).map((f) => f.key);
+  const [kept, setKept] = useState<string[]>(needing);
+  const needKey = needing.join("|");
+  useEffect(() => {
+    setKept((k) => [...new Set([...k, ...needing])].filter((key) => !model.bindingFor(r.key, key)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needKey, model]);
   const doneAt = run.status === "done" ? run.at.getTime() : 0;
-  // Once a block has run, its inputs fold into one sentence and its output becomes the content.
-  useEffect(() => setEditing(false), [doneAt]);
-  const collapsed = run.status === "done" && !editing;
-  const outs = outputFields(r.cap);
-  const usedBy = model.usedBy(r.key);
-  const notReady = ready ? null : `Waiting for ${host} to answer`;
+  useEffect(() => {
+    if (!doneAt) return;
+    setEditing(false);
+    setKept([]);
+  }, [doneAt]);
+  const open = new Set(editing ? fields.map((f) => f.key) : kept);
+  const openKeys = fields.filter((f) => open.has(f.key)).map((f) => f.key);
+
+  useEffect(() => {
+    if (!focusField) return;
+    const el = document.getElementById(fieldId(r, focusField)) ?? blockRef.current?.querySelector<HTMLElement>(`[aria-labelledby="${fieldId(r, focusField)}-label"] input`);
+    el?.focus();
+    setFocusField(null);
+  }, [focusField, r]);
+
+  const reason = !ready ? `Waiting for ${host} to answer` : run.status === "running" ? "Running now" : null;
+  const go = () => {
+    if (!reason) void actions.run(r);
+  };
+  const onKey = (e: KeyboardEvent) => {
+    const t = e.target as HTMLElement;
+    if (e.key === "Enter" && !e.shiftKey && t.tagName === "INPUT" && (t as HTMLInputElement).type !== "radio" && (t as HTMLInputElement).type !== "checkbox") {
+      e.preventDefault();
+      go();
+    }
+  };
+  const done = run.status === "done";
+  // One chunky primary at a time: only the next read still to run gets it.
+  const next = model.siteOrder.flatMap((o) => model.reads.filter((x) => x.origin === o)).find((x) => state.runs[x.key]?.status !== "done");
+  const isNext = next?.key === r.key;
   return (
-    <article className={`block cap ${state.hot === r.key ? "hot" : ""} ${run.status}`} data-capability={r.cap.id} data-origin={r.origin} data-flow-anchor={r.key} id={capAnchor(r.key)}>
-      {showTitle && <h3 className="block-title">{r.cap.title}</h3>}
-      <p className="block-desc">{r.cap.description}</p>
-      {collapsed ? (
-        <div className="inputs-summary">
-          {fields.map((f) => (
-            <SummaryItem key={f.key} r={r} field={f} />
-          ))}
-          <span className="sum-actions">
-            <button type="button" className="link-btn" onClick={() => setEditing(true)}>
-              Edit inputs
-            </button>
-            <button type="button" className="link-btn" onClick={() => void actions.run(r)} disabled={!ready}>
-              Run again
-            </button>
-          </span>
-        </div>
-      ) : (
-        <>
-          <InputFields r={r} />
-          <div className="block-actions">
-            <Button variant="primary" icon={<PlayIcon weight="fill" />} onClick={() => void actions.run(r)} disabledReason={notReady ?? (run.status === "running" ? "Running now" : null)}>
-              {run.status === "running" ? "Running…" : r.cap.title}
-            </Button>
-            <span className="hint">Read only · nothing changes on {host}</span>
-            <button type="button" className="link-btn push" onClick={() => setSchemaOpen((s) => !s)} aria-expanded={schemaOpen}>
-              {schemaOpen ? "Hide schema" : "Schema"}
-            </button>
-          </div>
-        </>
+    <article
+      ref={blockRef}
+      className={`block cap ${state.hot === r.key ? "hot" : ""} ${run.status} ${openKeys.length ? "has-open" : ""} ${isNext ? "next" : ""}`}
+      data-capability={r.cap.id}
+      data-origin={r.origin}
+      data-flow-anchor={r.key}
+      id={capAnchor(r.key)}
+      onKeyDown={onKey}
+    >
+      {showTitle && (
+        <header className="block-head">
+          <h3 className="block-title">{r.cap.title}</h3>
+          <p className="block-desc">{r.cap.description}</p>
+        </header>
       )}
-      {schemaOpen && <pre className="schema">{JSON.stringify(r.cap.input_schema, null, 2)}</pre>}
-      {run.status === "error" && <p className="block-error output-error">{run.message}</p>}
-      {run.status === "done" && (
-        <div className="output">
-          <OutputView value={run.output} origin={r.origin} />
-          {outs.length > 0 && (
-            <div className="feeds">
-              <span className="feeds-label">Outputs</span>
-              {outs.map((f) => {
-                const v = (run.output as Record<string, unknown> | null)?.[f];
-                if (v === undefined) return null;
-                return (
-                  <span key={f} className={`out-token ${model.isOutputUsed(r.key, f) ? "used" : ""}`} data-flow-src={`${r.key}|${f}`} style={hue(r.origin)}>
-                    <Monogram name={r.siteName} origin={r.origin} size="sm" />
-                    {f}
-                  </span>
-                );
-              })}
-              {usedBy.length > 0 && <span className="feeds-used">used by {usedBy.map((u) => u.cap.title).join(", ")}</span>}
-              <RawOutput value={run.output} />
-            </div>
-          )}
+      <div className="block-bar">
+        <InputSentence
+          r={r}
+          open={open}
+          onEdit={(f) => {
+            setEditing(true);
+            setFocusField(f ?? fields[0]?.key ?? null);
+          }}
+        />
+        <div className="block-run">
+          {done && <span className="ran-at">Ran {run.at.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>}
+          <Button
+            variant={isNext && !done ? "primary" : "secondary"}
+            size={done ? "sm" : "md"}
+            icon={run.status === "running" ? <span className="spinner" aria-hidden="true" /> : <PlayIcon weight="fill" />}
+            onClick={go}
+            disabledReason={reason}
+            aria-label={done ? `Run ${r.cap.title} again` : `Run ${r.cap.title}`}
+          >
+            {run.status === "running" ? "Running" : done ? "Run again" : "Run"}
+          </Button>
         </div>
+      </div>
+      <AnimatePresence initial={false}>
+        {openKeys.length > 0 && (
+          <m.div key="fields" className="block-fields" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}>
+            <InputFields r={r} only={openKeys} />
+            {editing && (
+              <div className="fields-foot">
+                <button type="button" className="link-btn" onClick={() => setEditing(false)}>
+                  Done editing
+                </button>
+              </div>
+            )}
+          </m.div>
+        )}
+      </AnimatePresence>
+      {run.status === "error" && (
+        <Banner tone="danger" icon={<WarningIcon />} className="block-error output-error">
+          {run.message}
+        </Banner>
+      )}
+      {done ? (
+        <m.div className="output" key={doneAt} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}>
+          <OutputView value={run.output} origin={r.origin} />
+          <Feeds r={r} output={run.output} />
+        </m.div>
+      ) : (
+        run.status !== "error" && <Placeholder r={r} running={run.status === "running"} slim={openKeys.length > 0} />
       )}
     </article>
+  );
+}
+
+/** Before the first run: what will appear, and that nothing changes on the site. */
+function Placeholder({ r, running, slim }: { r: CapRef; running: boolean; slim: boolean }) {
+  const outs = outputFields(r.cap);
+  return (
+    <div className={`placeholder ${running ? "running" : ""} ${slim ? "slim" : ""}`}>
+      <span>{running ? `Reading from ${r.siteName}…` : outs.length ? `Run to see ${outs.join(", ")}.` : "Run to see the result."}</span>
+      <span className="ph-safe">Read only. Nothing changes on {hostOf(r.origin)}.</span>
+    </div>
+  );
+}
+
+/** Each output field as a token, and the later steps that take it. */
+function Feeds({ r, output }: { r: CapRef; output: unknown }) {
+  const { model, actions } = useMosaic();
+  const hue = useHueStyle();
+  const outs = outputFields(r.cap).filter((f) => (output as Record<string, unknown> | null)?.[f] !== undefined);
+  if (outs.length === 0) return null;
+  const takers = (field: string) =>
+    model.refs.filter((o) => o.key !== r.key && Object.keys(o.cap.input_schema.properties ?? {}).some((k) => {
+      const b = model.bindingFor(o.key, k);
+      return b?.kind === "output" && b.cap === r.key && b.field === field;
+    }));
+  const token = (f: string, used: boolean) => (
+    <span key={f} className={`out-token ${used ? "used" : ""}`} data-flow-src={`${r.key}|${f}`} style={hue(r.origin)} onMouseEnter={() => actions.setHot(r.key)} onMouseLeave={() => actions.setHot(null)}>
+      <Monogram name={r.siteName} origin={r.origin} size="sm" />
+      {f}
+    </span>
+  );
+  const used = outs.map((f) => ({ f, ts: takers(f) })).filter((x) => x.ts.length > 0);
+  const unused = outs.filter((f) => !used.some((u) => u.f === f));
+  return (
+    <div className="feeds">
+      {used.map(({ f, ts }) => (
+        <div className="feed" key={f}>
+          {token(f, true)}
+          <ArrowRightIcon size={13} className="feed-arrow" aria-hidden="true" />
+          <span className="feed-label">feeds</span>
+          {ts.map((t) => {
+            const n = model.stepOf.get(t.origin);
+            return (
+              <a key={t.key} className="feed-target" href={`#${capAnchor(t.key)}`} style={hue(t.origin)}>
+                {t.cap.side_effects === "read" && n ? <span className="ft-num">{two(n)}</span> : <Monogram name={t.siteName} origin={t.origin} size="sm" />}
+                {t.cap.title}
+              </a>
+            );
+          })}
+        </div>
+      ))}
+      {unused.length > 0 && (
+        <div className="feed quiet">
+          <span className="feed-label">{used.length ? "Also returns" : "Returns"}</span>
+          {unused.map((f) => token(f, false))}
+          {used.length === 0 && <span className="feed-label">· no later step takes {unused.length === 1 ? "it" : "these"} yet</span>}
+        </div>
+      )}
+    </div>
   );
 }

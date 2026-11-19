@@ -135,8 +135,14 @@ async function main() {
   assert.equal(await build.textContent(), buildBefore, "Mosaic's build must not change when a site is connected");
   await buildSame(page).waitFor();
 
+  // 11. The flow is visible without reading bindings: the changelog's output says which later step
+  //     takes it, and a wire joins that output to the inputs it fills.
+  await runbook.feedTarget(draft, "Draft announcement").waitFor();
+  await page.waitForFunction(() => document.querySelectorAll("svg.wires .wire.inked").length >= 2);
+  assert.ok((await runbook.wires(page).count()) >= 2, "bound inputs are joined to their source by wires");
+
   await page.screenshot({ path: "e2e/last-run.png", fullPage: true });
-  console.log("e2e: all 10 checks passed");
+  console.log("e2e: all 11 checks passed");
 }
 
 main()
