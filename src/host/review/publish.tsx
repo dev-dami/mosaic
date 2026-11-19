@@ -1,12 +1,12 @@
-// Write cards (inside the review dock) and the receipts they leave in the document.
+// Write cards (inside the review dock) and the Publish ledger they leave in the document.
 // A write never runs from Mosaic's page: its one button asks the site, and the site's own
 // approval sheet is the only place the person can approve it.
 import { ArrowUpRightIcon, CheckIcon, HourglassMediumIcon, ProhibitIcon, WarningIcon } from "@phosphor-icons/react";
-import { capAnchor, hostOf, type CapRef } from "../doc";
+import { capAnchor, hostOf, type Binding, type CapRef } from "../doc";
 import { fmtTime } from "../format";
-import { Button, Monogram, Provenance, Tag, useHueStyle } from "../primitives";
+import { Button, Monogram, Provenance, Tag, Token, useHueStyle } from "../primitives";
 import { InputFields } from "../runbook";
-import { useMosaic } from "../state";
+import { inputKeys, useMosaic } from "../state";
 import { resultLinks, writeStatus, type WriteStatus } from "./status";
 import { openReview } from "./ui";
 
@@ -85,53 +85,75 @@ export function WriteCard({ r, index, offPlan }: { r: CapRef; index?: number; of
 }
 
 /**
- * Receipts, in the document: one stub per write that has an answer (published or denied). Pending
- * writes live in the review dock, not here, so the document ends with what actually happened.
+ * The document's last section: one ticket per write, in step order. A pending ticket names where
+ * its values come from (and carries the data-flow-dst anchors the runbook's wires end on); an
+ * answered one is the receipt, with the result's link. Clicking a ticket opens it in the dock.
  */
 export function PublishSection() {
   const { state, model } = useMosaic();
-  const answered = model.refs.filter((r) => r.cap.side_effects === "write" && ["done", "denied", "failed"].includes(writeStatus(state, r)));
-  if (answered.length === 0) return null;
-  const published = answered.filter((r) => state.runs[r.key]?.status === "done").length;
+  const writes = model.writes;
+  if (writes.length === 0) return null;
+  const published = writes.filter((r) => state.runs[r.key]?.status === "done").length;
   return (
-    <section className="receipts" id="receipts" aria-label="Receipts">
-      <header className="receipts-head">
-        <h2 className="label">Receipts</h2>
-        <span className="receipts-count">
-          {published} of {model.writes.length} published
+    <section className="ledger" id="receipts" aria-label="Publish">
+      <header className="ledger-head">
+        <h2>Publish</h2>
+        <span className="ledger-count">
+          {published === writes.length ? `All ${writes.length} published` : `${published} of ${writes.length} published`}
         </span>
       </header>
-      <ol className="receipts-list">
-        {answered.map((r) => (
-          <ReceiptStub key={r.key} r={r} />
+      <ol className="ledger-list">
+        {writes.map((r) => (
+          <Ticket key={r.key} r={r} />
         ))}
       </ol>
     </section>
   );
 }
 
-function ReceiptStub({ r }: { r: CapRef }) {
-  const { state } = useMosaic();
+function Ticket({ r }: { r: CapRef }) {
+  const { state, model, actions } = useMosaic();
   const hue = useHueStyle();
-  const run = state.runs[r.key];
-  if (!run || (run.status !== "done" && run.status !== "error")) return null;
-  const ok = run.status === "done";
+  const run = state.runs[r.key] ?? { status: "idle" };
+  const status = writeStatus(state, r);
   const host = hostOf(r.origin);
-  const links = ok ? resultLinks(run.output, r.origin) : [];
+  const links = run.status === "done" ? resultLinks(run.output, r.origin) : [];
+  const sources = inputKeys(r)
+    .map((f) => model.bindingFor(r.key, f))
+    .filter((b): b is Extract<Binding, { kind: "output" }> => b?.kind === "output");
+  const answered = status === "done" || status === "denied" || status === "failed";
   return (
-    <li className={`stub ${ok ? "ok" : "no"}`} style={hue(r.origin)}>
-      <div className="stub-main">
+    <li className={`stub ${status}`} style={hue(r.origin)}>
+      {sources.map((b, i) => (
+        <span key={i} className="stub-dst" data-flow-dst={`${b.cap}|${b.field}`} style={{ top: `calc(50% + ${(i - (sources.length - 1) / 2) * 8}px)` }} aria-hidden="true" />
+      ))}
+      <button type="button" className="stub-main" onClick={() => openReview(r.key)} aria-label={`${r.cap.title} on ${host}: open in review`}>
         <Monogram name={r.siteName} origin={r.origin} />
-        <div className="stub-text">
+        <span className="stub-text">
           <span className="stub-title">{r.cap.title}</span>
           <span className="stub-sub">
-            {ok ? "Approved" : run.denied ? "Denied" : "Failed"} on <b>{host}</b> · <time>{fmtTime(run.at)}</time>
+            {(run.status === "done" || run.status === "error") ? (
+              <>
+                {status === "done" ? "Approved" : status === "denied" ? "Denied" : "Failed"} on <b>{host}</b> · <time>{fmtTime(run.at)}</time>
+              </>
+            ) : status === "waiting" ? (
+              <>Waiting for your answer on {host}</>
+            ) : sources.length > 0 ? (
+              <span className="stub-from">
+                <span className="stub-from-label">from</span>
+                {sources.map((b, i) => (
+                  <Token key={i} info={model.tokenInfo(b)} onHover={(on) => actions.setHot(on ? b.cap : null)} />
+                ))}
+              </span>
+            ) : (
+              <>Changes {host}</>
+            )}
           </span>
-        </div>
-      </div>
-      <div className="stub-tear" aria-hidden="true" />
-      <div className="stub-side">
-        {ok ? (
+        </span>
+      </button>
+      <span className="stub-tear" aria-hidden="true" />
+      <span className="stub-side">
+        {status === "done" ? (
           links.length > 0 ? (
             links.map((l) => (
               <a key={l.key} href={l.href} target="_blank" rel="noreferrer" className="stub-link">
@@ -142,15 +164,19 @@ function ReceiptStub({ r }: { r: CapRef }) {
           ) : (
             <span className="stub-note">Done</span>
           )
+        ) : status === "waiting" || status === "running" ? (
+          <Tag tone="warning" size="sm">
+            {status === "waiting" ? "Waiting for you" : "Sending"}
+          </Tag>
         ) : (
-          <button type="button" className="stub-note link-btn" onClick={() => openReview(r.key)}>
-            {run.denied ? "Nothing changed. Review again" : "Review again"}
+          <button type="button" className="link-btn stub-review" onClick={() => openReview(r.key)}>
+            {answered ? "Nothing changed · Review" : "Review"}
           </button>
         )}
         <span className="stub-stamp" aria-hidden="true">
-          {ok ? <CheckIcon weight="bold" /> : <ProhibitIcon weight="bold" />}
+          {status === "done" ? <CheckIcon weight="bold" /> : answered ? <ProhibitIcon weight="bold" /> : null}
         </span>
-      </div>
+      </span>
     </li>
   );
 }
