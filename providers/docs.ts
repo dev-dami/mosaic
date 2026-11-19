@@ -1,17 +1,20 @@
 import { serveSite, type SiteDefinition } from "./site";
 
-const pages = new Map<string, { revision: number; body: string }>([
-  ["docs/getting-started.md", { revision: 1, body: "# Getting started\n\nInstall the 0.9 beta." }],
-]);
+const BETA_PAGE = "# Getting started\n\nInstall the 0.9 beta.\n\n> The beta API may change before 1.0.";
+
+const pages = new Map<string, { revision: number; body: string }>([["docs/getting-started.md", { revision: 1, body: BETA_PAGE }]]);
 
 function proposedBody(version: string, summary: string): string {
-  return `# Getting started\n\nInstall ${version}.\n\n## What changed in ${version}\n\n${summary}`;
+  // Release notes often start with their own heading; the page already has one.
+  const changes = summary.replace(/^#{1,6}\s.*\n+/, "").trim();
+  return `# Getting started\n\nInstall ${version}.\n\n## What changed in ${version}\n\n${changes}`;
 }
 
 export const docsSite: SiteDefinition = {
-  name: "Demo Docs",
+  name: "Pagewright",
   description: "A fictional documentation host. It previews and applies documentation updates for a project.",
   port: 4101,
+  look: { scheme: "light", accent: "#1d7a4e", font: "serif" },
   capabilities: [
     {
       id: "preview-docs-update",

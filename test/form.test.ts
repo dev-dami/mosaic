@@ -12,13 +12,14 @@ const schema = {
     delay: { type: "integer" },
     draft: { type: "boolean", default: true },
     meta: { type: "object" },
+    at: { type: "string", format: "date-time" },
   },
 };
 
 describe("compileForm", () => {
   test("maps each schema type to a widget", () => {
     const kinds = Object.fromEntries(compileForm(schema).map((f) => [f.key, f.kind]));
-    expect(kinds).toEqual({ version: "text", notes: "textarea", highlights: "list", tone: "select", delay: "integer", draft: "boolean", meta: "json" });
+    expect(kinds).toEqual({ version: "text", notes: "textarea", highlights: "list", tone: "select", delay: "integer", draft: "boolean", meta: "json", at: "datetime" });
   });
 
   test("falls back to one raw JSON field for a non-object schema", () => {
@@ -36,6 +37,12 @@ describe("toInput", () => {
 
   test("refuses a missing required value", () => {
     expect(() => toInput(fields, { ...initialValues(fields), version: " " })).toThrow(FormError);
+  });
+
+  test("turns a local date-time into an ISO timestamp", () => {
+    const values = { ...initialValues(fields), highlights: "x", at: "2026-11-20T09:30" };
+    expect((toInput(fields, values) as { at: string }).at).toBe(new Date("2026-11-20T09:30").toISOString());
+    expect(() => toInput(fields, { ...values, at: "soon" })).toThrow("valid date");
   });
 
   test("refuses a fraction for an integer", () => {

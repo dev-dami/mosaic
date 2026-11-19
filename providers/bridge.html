@@ -3,21 +3,68 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Mosaic bridge</title>
+    <title>Approval</title>
+    <link rel="stylesheet" href="../assets/fonts.css" />
     <style>
-      body { font: 15px system-ui, sans-serif; margin: 0; padding: 20px; background: #fff; color: #111; }
-      .card { max-width: 520px; margin: 0 auto; }
-      h1 { font-size: 18px; margin: 0 0 8px; }
-      pre { background: #f4f4f5; padding: 12px; border-radius: 8px; max-height: 240px; overflow: auto; font-size: 12px; white-space: pre-wrap; }
-      .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
-      button { font: inherit; padding: 8px 16px; border-radius: 8px; border: 1px solid #d4d4d8; background: #fff; cursor: pointer; }
-      button.approve { background: #111; color: #fff; border-color: #111; }
-      button:disabled { opacity: 0.4; cursor: default; }
-      .who { color: #52525b; font-size: 13px; }
+      /* The site's own approval sheet. Each site sets its look in its bridge config,
+         so the prompt looks like the site that owns it and never like the host. */
+      :root {
+        --accent: #2f6fde; --bg: #ffffff; --ink: #18181b; --muted: #6b6b73; --line: rgba(0,0,0,.09);
+        --soft: rgba(0,0,0,.035); --radius: 12px; --btn-radius: 10px;
+        --font: "Geist", ui-sans-serif, system-ui, sans-serif; --title-font: var(--font); --mono: "Geist Mono", ui-monospace, monospace;
+      }
+      :root[data-scheme="dark"] { --bg: #16131d; --ink: #efedf6; --muted: #9a95ab; --line: rgba(255,255,255,.09); --soft: rgba(255,255,255,.045); }
+      :root[data-font="serif"] { --title-font: "Newsreader", Georgia, serif; --radius: 4px; --btn-radius: 4px; }
+      :root[data-font="mono"] { --font: "Geist Mono", ui-monospace, monospace; --title-font: var(--font); --radius: 6px; --btn-radius: 6px; }
+      :root[data-font="rounded"] { --font: "Nunito", ui-rounded, system-ui, sans-serif; --title-font: var(--font); --radius: 20px; --btn-radius: 999px; }
+      :root[data-font="rounded"] { --bg: #fff8f4; }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+      #root { min-height: 100%; display: flex; flex-direction: column; }
+      .bar { height: 4px; background: var(--accent); flex: none; }
+      .sheet { padding: 20px 22px 18px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+      .site { display: flex; align-items: center; gap: 10px; }
+      .mark { width: 32px; height: 32px; border-radius: calc(var(--radius) * .6); background: var(--accent); color: #fff; display: grid; place-items: center; font: 700 15px var(--title-font); flex: none; }
+      .site .name { font: 650 15px/1.2 var(--title-font); }
+      :root[data-font="serif"] .site .name { font-size: 18px; font-weight: 600; }
+      .site .origin { font: 12px var(--mono); color: var(--muted); }
+      .lock { margin-left: auto; font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
+      .ask { border-top: 1px solid var(--line); padding-top: 14px; }
+      .verb { font: 650 22px/1.2 var(--title-font); letter-spacing: -0.01em; }
+      :root[data-font="serif"] .verb { font-size: 27px; font-weight: 500; }
+      .via { color: var(--muted); font-size: 13px; margin-top: 4px; }
+      .via b { color: var(--ink); font-weight: 600; }
+      dl { margin: 0; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+      dl div { display: grid; grid-template-columns: 110px 1fr; gap: 12px; padding: 8px 12px; }
+      dl div + div { border-top: 1px solid var(--line); }
+      dt { color: var(--muted); font-size: 13px; }
+      dd { margin: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .consequence { font-size: 13px; color: var(--muted); margin: 0; display: flex; gap: 8px; }
+      .consequence::before { content: ""; width: 8px; height: 8px; margin-top: 6px; border-radius: 2px; background: var(--accent); flex: none; transform: rotate(45deg); }
+      details { font-size: 12px; color: var(--muted); }
+      summary { cursor: pointer; }
+      pre { background: var(--soft); border: 1px solid var(--line); padding: 10px; border-radius: calc(var(--radius) * .6); max-height: 140px; overflow: auto; font: 11.5px/1.5 var(--mono); white-space: pre-wrap; color: var(--ink); }
+      .actions { display: flex; gap: 10px; margin-top: auto; padding-top: 4px; }
+      button { font: 600 14px var(--font); padding: 11px 16px; border-radius: var(--btn-radius); border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+      button.deny { flex: none; }
+      button.approve { flex: 1; position: relative; overflow: hidden; background: var(--accent); border-color: var(--accent); color: #fff; }
+      button.approve .fill { position: absolute; inset: 0; background: rgba(255,255,255,.28); transform-origin: left; animation: sweep 700ms linear forwards; }
+      button.approve span { position: relative; }
+      button.approve:disabled { cursor: default; filter: saturate(.7); opacity: .75; }
+      @keyframes sweep { from { transform: scaleX(0); } to { transform: scaleX(1); opacity: 0; } }
+      .status { flex: 1; display: grid; place-items: center; text-align: center; padding: 24px; gap: 10px; align-content: center; }
+      .status .icon { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; color: #fff; background: var(--accent); }
+      .status.denied .icon { background: var(--muted); }
+      .status .msg { font: 600 17px var(--title-font); }
+      .status .sub { color: var(--muted); font-size: 13px; }
+      .spinner { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { .spinner, button.approve .fill { animation-duration: 0s; } }
     </style>
   </head>
   <body>
-    <div id="root" class="card"></div>
+    <div id="root"></div>
     <script type="module" src="./bridge.ts"></script>
   </body>
 </html>

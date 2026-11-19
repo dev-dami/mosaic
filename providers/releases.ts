@@ -8,8 +8,9 @@ function changelog(version: string, highlights: string[]): string {
 }
 
 export const releasesSite: SiteDefinition = {
-  name: "Demo Releases",
+  name: "Tagforge",
   description: "A fictional release host. It drafts changelogs and publishes releases.",
+  look: { scheme: "dark", accent: "#9b7bff", font: "mono" },
   port: 4102,
   capabilities: [
     {

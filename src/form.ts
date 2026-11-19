@@ -6,6 +6,7 @@ export type Field =
   | { kind: "boolean"; key: string; label: string; required: boolean; help?: string; initial: boolean }
   | { kind: "select"; key: string; label: string; required: boolean; help?: string; initial: string; options: string[] }
   | { kind: "list"; key: string; label: string; required: boolean; help?: string; initial: string }
+  | { kind: "datetime"; key: string; label: string; required: boolean; help?: string; initial: string }
   | { kind: "json"; key: string; label: string; required: boolean; help?: string; initial: string };
 
 export type FormValues = Record<string, string | boolean>;
@@ -20,6 +21,7 @@ function fieldFor(key: string, schema: JsonSchema, required: boolean): Field {
   }
   switch (schema.type) {
     case "string": {
+      if (schema.format === "date-time") return { ...base, kind: "datetime", initial: "" };
       const long = schema["x-mosaic-widget"] === "textarea" || (schema.maxLength ?? 0) > 200;
       return { ...base, kind: long ? "textarea" : "text", initial: String(schema.default ?? "") };
     }
@@ -73,6 +75,12 @@ export function toInput(fields: Field[], values: FormValues): unknown {
           throw new FormError(`${field.label} must be ${field.kind === "integer" ? "a whole number" : "a number"}`);
         }
         out[field.key] = n;
+        break;
+      }
+      case "datetime": {
+        const when = new Date(text);
+        if (Number.isNaN(when.getTime())) throw new FormError(`${field.label} is not a valid date and time`);
+        out[field.key] = when.toISOString();
         break;
       }
       case "list":

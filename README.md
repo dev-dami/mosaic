@@ -24,13 +24,35 @@ bun run dev        # Mosaic on :4000, demo sites on :4101, :4102, :4103
 ```
 
 Open http://localhost:4000 and connect `http://localhost:4101`, then `http://localhost:4102`, then
-`http://localhost:4103`. Each port is a different origin, so each site is a separate website to the browser.
+`http://localhost:4103` (the empty page offers them as chips). Each port is a different origin, so each
+site is a separate website to the browser. `PORT_BASE=8000 bun run dev` moves everything to 8000/8101-8103.
 
 ```sh
 bun run typecheck
 bun run test       # unit tests: form compiler, manifest parsing, site API guard
-bun run e2e        # browser test of the whole flow (set CHROMIUM_PATH if needed)
+bun run e2e        # browser test of the whole flow (set CHROMIUM_PATH if needed, E2E_PORT_BASE to move ports)
 ```
+
+## The workspace
+
+The workspace is one document, a runbook for the outcome you name ("Launch Lumen v1.0").
+
+- **Steps.** Each connected site becomes a numbered step, built from the capabilities in its manifest.
+  Every step and value carries a host-drawn provenance chip: a monogram, the site name and its origin.
+  The chip's colour comes from a hash of the origin, so a site cannot pick another site's colour.
+- **Data flows between sites.** A field takes its value from a document property (Project, Version) or
+  from another step's output with the same name, shown as a token and a connector line in the margin.
+  Release notes drafted on one site fill the docs change on a second and the post on a third. You can
+  unlink a token and type, or link an empty field to any output with one click.
+- **Output as content.** Markdown is rendered, a before/after pair is a coloured diff, lists of records
+  are tables. The raw JSON and the input schema are behind toggles.
+- **Ready to publish.** Every write is gathered at the end for review. Each opens that site's own
+  approval prompt, styled by the site, with the 700 ms Approve delay shown as a fill. Approved, denied
+  and failed writes stay visible, and an activity log records each one.
+- **No redeploy.** The top bar shows a fingerprint of Mosaic's own source. Mosaic checks it again after
+  each connection, so the "connect a site Mosaic has never seen" moment shows the build did not change.
+
+Mosaic matches fields by name and shape only. Nothing in `src/` knows the demo sites.
 
 ## How it works
 
@@ -55,7 +77,8 @@ The parts:
 | `src/form.ts` | The capability-to-UI compiler: JSON Schema to form fields, and form values back to typed input. |
 | `src/host/` | The Mosaic workspace (React) and the host end of the bridge. |
 | `providers/site.ts`, `providers/bridge.ts` | A small kit that makes any site Mosaic-compatible: manifest, bridge page, guarded API. |
-| `providers/{docs,releases,announcer}.ts` | Three fictional demo sites. |
+| `providers/{docs,releases,announcer}.ts` | Three fictional demo sites: Pagewright (docs), Tagforge (releases), Loudhailer (announcements). |
+| `src/host/doc.ts` | Runbook logic: provenance hue, markdown and diff models, the outcome sentence, field bindings. |
 
 ### Security rules in the spike
 

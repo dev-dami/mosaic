@@ -4,18 +4,25 @@ import bridgePage from "./bridge.html";
 
 export type CapabilityImpl = Capability & { run: (input: any) => unknown };
 
+/** How the site's own approval prompt looks. The site owns this, not the host. */
+export type SiteLook = { scheme: "light" | "dark"; accent: string; font: "sans" | "serif" | "mono" | "rounded" };
+
 export type SiteDefinition = {
   name: string;
   description: string;
   port: number;
+  look?: SiteLook;
   capabilities: CapabilityImpl[];
 };
 
 export type BridgeConfig = {
   site: string;
   allowed_hosts: string[];
-  capabilities: Pick<Capability, "id" | "title" | "side_effects">[];
+  look: SiteLook;
+  capabilities: (Pick<Capability, "id" | "title" | "description" | "side_effects"> & { fields: Record<string, string> })[];
 };
+
+const DEFAULT_LOOK: SiteLook = { scheme: "light", accent: "#2f6fde", font: "sans" };
 
 type Activity = { at: string; capability: string; input: unknown };
 
@@ -24,6 +31,7 @@ const BRIDGE_PATH = "/mosaic/bridge";
 export function createSite(def: SiteDefinition, origin: string, allowedHosts: string[]) {
   const ajv = new Ajv({ allErrors: true });
   ajv.addKeyword("x-mosaic-widget");
+  ajv.addFormat("date-time", (value: string) => !Number.isNaN(Date.parse(value)));
   const validators = new Map(def.capabilities.map((c) => [c.id, ajv.compile(c.input_schema)]));
   const activity: Activity[] = [];
 
@@ -37,7 +45,14 @@ export function createSite(def: SiteDefinition, origin: string, allowedHosts: st
   const bridgeConfig: BridgeConfig = {
     site: def.name,
     allowed_hosts: allowedHosts,
-    capabilities: def.capabilities.map(({ id, title, side_effects }) => ({ id, title, side_effects })),
+    look: def.look ?? DEFAULT_LOOK,
+    capabilities: def.capabilities.map(({ id, title, description, side_effects, input_schema }) => ({
+      id,
+      title,
+      description,
+      side_effects,
+      fields: Object.fromEntries(Object.entries(input_schema.properties ?? {}).map(([key, schema]) => [key, schema.title ?? key])),
+    })),
   };
 
   /**
@@ -58,6 +73,7 @@ export function createSite(def: SiteDefinition, origin: string, allowedHosts: st
     return Response.json(output);
   }
 
+  const look = def.look ?? DEFAULT_LOOK;
   function homePage(): Response {
     const rows = activity
       .map((a) => `<li><time>${a.at}</time> <b>${escapeHtml(a.capability)}</b> <code>${escapeHtml(JSON.stringify(a.input))}</code></li>`)
@@ -66,7 +82,7 @@ export function createSite(def: SiteDefinition, origin: string, allowedHosts: st
     return new Response(
       `<!doctype html><meta charset="utf-8"><title>${escapeHtml(def.name)}</title>
 <link rel="mosaic-capabilities" href="${MANIFEST_PATH}">
-<style>body{font:15px system-ui;max-width:720px;margin:40px auto;padding:0 16px}code{font-size:12px}</style>
+<style>body{font:15px/1.55 system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 16px;background:${look.scheme === "dark" ? "#141218" : "#fbfaf7"};color:${look.scheme === "dark" ? "#ecebf2" : "#1d1c1a"}}h1{color:${look.accent}}code{font-size:12px;word-break:break-all}li{margin:6px 0}</style>
 <h1>${escapeHtml(def.name)}</h1><p>${escapeHtml(def.description)}</p>
 <p><small>Fictional demo site. Nothing leaves this server.</small></p>
 <h2>Capabilities</h2><ul>${caps}</ul>
@@ -97,6 +113,8 @@ export function serveSite(def: SiteDefinition) {
       [BRIDGE_PATH]: bridgePage,
       "/mosaic/bridge-config": () => Response.json(site.bridgeConfig),
       "/api/capabilities/:id": { POST: (req) => site.handleApi(req, req.params.id) },
+      // Result links (for example /releases/v1.0) land on the site's own page with its activity log.
+      "/*": () => site.homePage(),
     },
   });
   console.log(`${def.name} on ${origin} (allows hosts: ${allowedHosts.join(", ")})`);

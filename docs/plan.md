@@ -54,8 +54,9 @@ Each phase ends with the end-to-end test green.
    approval, three demo sites, a site added at runtime, refusal of a host the site does not allow.
 2. **Signed declarations.** Option B: discover and verify packages with the WebAgentica TypeScript core,
    map tool declarations to capabilities, sign the demo sites' packages.
-3. **Data flow between capabilities.** Fill one capability's input from another's output (release
-   notes into the announcement). This is what makes it an application and not a list of forms.
+3. **Data flow between capabilities (first cut done).** Fill one capability's input from another's
+   output (release notes into the announcement). Name matching, document properties, and one-click
+   manual links work today; typed matching beyond strings does not.
 4. **Real credentials.** Sign-in for a site inside the bridge (popup sign-in, or the Storage Access API,
    because browsers partition or block third-party iframe cookies). This is the largest remaining risk.
 5. **Recipes.** Save a workspace as a declarative recipe: site URLs, capability ids, layout, data

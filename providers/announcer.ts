@@ -2,10 +2,14 @@ import { serveSite, type SiteDefinition } from "./site";
 
 let scheduled = 0;
 
+/** Release notes often open with a version heading; a post reads better without it. */
+const body = (notes: string) => notes.replace(/^#{1,6}\s.*\n+/, "").trim();
+
 export const announcerSite: SiteDefinition = {
-  name: "Demo Announcer",
+  name: "Loudhailer",
   description: "A fictional announcement service. It drafts and schedules launch posts.",
   port: 4103,
+  look: { scheme: "light", accent: "#e8563a", font: "rounded" },
   capabilities: [
     {
       id: "draft-announcement",
@@ -24,8 +28,13 @@ export const announcerSite: SiteDefinition = {
       },
       output_schema: { type: "object", properties: { text: { type: "string" } } },
       run: (input: { project: string; version: string; notes: string; tone?: string }) => {
-        const opener = input.tone === "excited" ? `${input.project} ${input.version} is here!` : `Introducing ${input.project} ${input.version}.`;
-        return { text: `${opener}\n\n${input.notes}` };
+        const opener =
+          input.tone === "excited"
+            ? `${input.project} ${input.version} is here!`
+            : input.tone === "formal"
+              ? `We are pleased to announce ${input.project} ${input.version}.`
+              : `Introducing ${input.project} ${input.version}.`;
+        return { text: `${opener}\n\n${body(input.notes)}` };
       },
     },
     {
@@ -38,14 +47,18 @@ export const announcerSite: SiteDefinition = {
         required: ["text"],
         properties: {
           text: { type: "string", title: "Post", "x-mosaic-widget": "textarea" },
-          delay_minutes: { type: "integer", title: "Delay (minutes)", default: 0, minimum: 0 },
+          post_at: { type: "string", format: "date-time", title: "Post at", description: "Leave empty to post now." },
         },
       },
-      output_schema: { type: "object", properties: { id: { type: "string" }, posts_at: { type: "string" } } },
-      run: (input: { text: string; delay_minutes?: number }) => {
+      output_schema: {
+        type: "object",
+        properties: { id: { type: "string" }, posts_at: { type: "string" }, url: { type: "string" } },
+      },
+      run: (input: { text: string; post_at?: string }) => {
         scheduled += 1;
-        const postsAt = new Date(Date.now() + (input.delay_minutes ?? 0) * 60_000).toISOString();
-        return { id: `post-${scheduled}`, posts_at: postsAt };
+        const postsAt = new Date(input.post_at ?? Date.now()).toISOString();
+        const id = `post-${scheduled}`;
+        return { id, posts_at: postsAt, url: `/posts/${id}` };
       },
     },
   ],
