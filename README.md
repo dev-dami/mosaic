@@ -49,8 +49,9 @@ The workspace is one document, a runbook for the outcome you name ("Launch Lumen
 - **Ready to publish.** Every write is gathered at the end for review. Each opens that site's own
   approval prompt, styled by the site, with the 700 ms Approve delay shown as a fill. Approved, denied
   and failed writes stay visible, and an activity log records each one.
-- **No redeploy.** The top bar shows a fingerprint of Mosaic's own source. Mosaic checks it again after
-  each connection, so the "connect a site Mosaic has never seen" moment shows the build did not change.
+- **No redeploy.** Mosaic checks a fingerprint of its own source again after each connection; the top
+  bar then says "Mosaic unchanged" (the fingerprint is in its tooltip), so the "connect a site Mosaic
+  has never seen" moment shows the build did not change.
 
 Mosaic matches fields by name and shape only. Nothing in `src/` knows the demo sites.
 

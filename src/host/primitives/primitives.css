@@ -143,8 +143,10 @@
   border-radius: var(--radius); background: var(--site-bg, var(--sunken-2)); border: 1px solid var(--site-line, var(--line-strong));
   font-size: 12px; white-space: nowrap; color: var(--ink-2);
 }
-.token.doc-tk { padding-left: 6px; }
-.tk-doc { font: 800 12px var(--font-title); color: var(--muted); }
+/* An outcome token is the person's own words, not a site's: neutral, whatever step it sits in. */
+.token.doc-tk { padding-left: 5px; background: var(--sunken-2); border-color: var(--line-strong); }
+.token.doc-tk .tk-label { color: var(--ink); }
+.tk-doc { width: 13px; height: 13px; flex: none; color: var(--muted); }
 .tk-source { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .tk-sep { color: var(--faint); }
 .tk-label { font: 550 12px var(--font-mono); color: var(--site-ink, var(--ink)); }

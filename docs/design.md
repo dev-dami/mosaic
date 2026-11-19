@@ -19,13 +19,16 @@ The current runbook asks the person to read too much before they can act. The ne
    inside the sites the outcome names; a site it names nothing on keeps all its steps, after the
    named ones, because the person connected it.
 2. **Connect what it needs.** ⌘K (Ctrl K) opens the palette. Paste a URL; the palette runs the staged
-   checks in place and ends with "+3 capabilities from tagforge.example". A refused host ends in red
+   checks in place and ends with "+3 capabilities from Tagforge". A refused host ends in red
    with the reason. The empty runbook offers the same action as a primary button. A site Mosaic has
    never seen adds its steps the moment it connects.
 3. **Run the steps.** Each step shows its output as content. Inputs that are already bound show as one
-   line of tokens; the form opens only when the person edits. Wires show where each value came from.
-4. **Publish.** Every write waits in one sticky review bar at the bottom: "3 writes ready to publish".
-   Each opens that site's own approval sheet. Receipts stay in the document; a toast only echoes them.
+   line of tokens; the form opens only when the person edits. Pointing at a token draws one wire from
+   where the value came from.
+4. **Publish.** Every write has one home: the review bar on the document column ("3 changes to
+   approve") and the drawer it opens (a side panel at 1200px and wider, a bottom sheet on phones). A
+   step only carries an outline tag, "1 change to publish", that opens it. Each card opens that site's
+   own approval sheet. The card becomes the receipt and the activity log keeps it; a toast only echoes.
 
 **Removed from the main view** (still reachable, behind disclosure):
 
@@ -61,8 +64,10 @@ All in `src/host/theme.css`, light on `:root`, dark under both `prefers-color-sc
 **Status** is separate from the accent and from site hues: `--success*` (green 150), `--warning*`
 (amber 66-92), `--danger*` (red 27), `--info*`. Each has text, `-fill`, `-line` and `-solid`.
 
-**Site hues** come from `src/host/hue.ts`: the host hashes the origin into two bands, 182-250 and
-285-350, and keeps connected sites at least 34 degrees apart (three sites always, more when the bands allow). A hue picker snaps any choice back into
+**Site hues** come from `src/host/hue.ts`: the host hashes the origin into two bands, 190-237 and
+299-350, clear of success green and at least 30 degrees from the accent, so a site never looks like a
+primary button. The four band edges are tried first, so up to four sites stay 47 degrees or more apart;
+a fifth shares the bands (24 degrees or more). A hue picker snaps any choice back into
 the bands (`actions.setHue`). An element that sets `--h` gets `--site-bg`, `--site-ink`,
 `--site-line`, `--site-solid`, `--site-wire`. Site colour appears on provenance only (monogram, pill,
 token, left ribbon of a block, wire), never as a fill behind content.
@@ -108,11 +113,11 @@ Area components to build (each owned by one area, see section 8):
 | Outcome input | B | The first action. Large Nunito input with a placeholder that says what to type, Project and Version as editable chips under it, `react-textarea-autosize` if it wraps. Re-plans steps as the person types (debounced, animated with `motion` layout). |
 | Command palette | B | `cmdk` dialog on ⌘K. Groups: Connect (a URL typed becomes "Connect <origin>"; `shouldFilter={false}` for URLs), Suggested sites, Steps (jump to), Actions (theme, review). Connecting shows the four stages inline, then "+N capabilities from <host>" with `@number-flow/react`. A refused host is a red row with the reason and no retry spinner. |
 | Sources list | B | Slim list or popover: monogram, name, status dot, capabilities on hover; the hue picker (`@radix-ui/react-slider` over a track with the reserved bands hatched) lives in the source's popover. |
-| Step block | A | Number, title, provenance pill. Output first as content; bound inputs as one line of tokens; Edit opens the fields. One primary button per step. |
-| Wires | A | Hand-drawn strokes (`perfect-freehand` over a level-ended cubic computed in `wires.tsx`) from an output token to the inputs it fills, recomputed by ResizeObserver. Below 640px there are no margin wires: each output's "→ feeds" row names the later steps that take it, and bound inputs carry tokens with the source step's number. |
-| Review bar | C | Sticky bottom bar on `--rail` with a ledge on top: count of pending writes (rolling number), the sites involved as monograms, one primary "Review N" button, and progress. Expands (motion) into the write cards. |
-| Write card | C | Title, "Changes <site>" tag, inputs via `InputFields compact`, one secondary button "Approve on <host>". Done shows a receipt with the result's links. |
-| Receipts and toasts | C | Receipts stay in the document and the activity log. `sonner` (unstyled, chunky card) echoes each result; never the only record. |
+| Step block | A | Sticky header under the top bar: number, title, a "N changes to publish" outline tag in the site's hue, the site chip. Context reads (no input) show in the site chip's details. Output first as content; bound inputs as one line of tokens; Edit opens the fields. A chunky Run only before the first run, then a tertiary "Run again". |
+| Wires | A | On demand only: while an output token, a "feeds" link or an input's source token is hovered or focused (`runbook/flow.ts`), one hand-drawn stroke (`perfect-freehand`) joins that output to the input it fills, and both ends light up. Nothing is drawn at rest; below 640px never. |
+| Review bar | C | A bar with the same left edge and width as the document column: "3 changes to approve", a neutral tile per change (site monogram and state mark), one primary "Review" with ⌘↵. Opens into the write cards: a side panel that pushes the layout aside at 1200px and wider, an overlay drawer below, a draggable bottom sheet on phones. |
+| Write card | C | Title, site pill, inputs via `InputFields compact`, one secondary button "Approve on <site>" with the origin beside it in mono. Done fills the number with a check, washes the card in `--accent-10` once, and shows the receipt with the result's links. |
+| Receipts and toasts | C | The card and the activity log keep each answer. `sonner` (unstyled, chunky card, bottom right above the bar, beside the side panel) echoes each result; never the only record. |
 | Approval sheet | C (`providers/bridge.html`, `providers/sheet.ts`) | The site's own page, its own look. Show values with human labels: "Pre-release: No", not "Pre-release false". A generic sheet cannot know the site's current state, so the only comparison it shows is against the last request it saw for the same capability (`diffWordsWithSpace`), from the sheet's own memory. Plain DOM only; no React on the site's origin. |
 
 ## 5. Interaction
@@ -134,8 +139,7 @@ Area components to build (each owned by one area, see section 8):
 - Animate in and settle. Never loop, except a spinner while something is actually running.
 - `motion` with `MotionConfig reducedMotion="user"`; theme.css also flattens CSS motion under
   `prefers-reduced-motion`.
-- `canvas-confetti` is installed for one short burst when every write is approved; it must pass
-  `disableForReducedMotion: true`. Optional.
+- No celebration effects. A published write gets the check and a 1.5s accent wash on its card.
 
 ## 7. Copy
 
