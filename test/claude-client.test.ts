@@ -130,6 +130,59 @@ describe("Claude client", () => {
     ]);
   });
 
+  test("trimmed history that starts with an assistant turn or orphan tool results still starts with a user turn", () => {
+    const { messages } = toClaudeRequest([
+      { role: "system", content: "S" },
+      { role: "assistant", content: null, tool_calls: [{ id: "old", type: "function", function: { name: "t", arguments: "{}" } }] },
+      { role: "tool", tool_call_id: "old", content: "r" },
+      { role: "assistant", content: "An earlier answer." },
+      { role: "user", content: "next" },
+    ]);
+    expect(messages).toEqual([{ role: "user", content: "next" }]);
+  });
+
+  test("a quoted model name is cleaned the way the runtime cleans it", async () => {
+    const { llm, requests } = stub([sse([{ type: "text", text: "ok" }], "end_turn")]);
+    await llm.chat({ model: ' "claude-opus-5-5" ', messages: [{ role: "user", content: "x" }] });
+    expect(requests[0]!.body.model).toBe("claude-opus-5-5");
+  });
+
+  test("an abort mid-stream throws AbortError, ends the span as steered, and sends no more text", async () => {
+    const encoder = new TextEncoder();
+    const ac = new AbortController();
+    let push!: (s: string) => void;
+    const fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          push = (s) => controller.enqueue(encoder.encode(s));
+          init?.signal?.addEventListener("abort", () => controller.error(new DOMException("aborted", "AbortError")));
+        },
+      });
+      return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+    }) as typeof globalThis.fetch;
+    const client = new Anthropic({ apiKey: "sk-test", fetch, maxRetries: 0, dangerouslyAllowBrowser: true });
+    const spans: { kind: string; fields: Record<string, unknown> }[] = [];
+    const trace = {
+      start: () => "span",
+      update: () => {},
+      end: (_s: unknown, fields: Record<string, unknown>) => spans.push({ kind: "end", fields }),
+      fail: (_s: unknown, err: unknown) => spans.push({ kind: "fail", fields: { err } }),
+    };
+    const llm = new ClaudeLlmClient({ apiKey: "sk-test", client, trace });
+    const deltas: string[] = [];
+    const call = llm.chat({ model: "claude-opus-5-5", messages: [{ role: "user", content: "x" }], onContentDelta: (t) => deltas.push(t), signal: ac.signal });
+    const full = sse([{ type: "text", text: "abcdefgh" }], "end_turn");
+    const cut = full.indexOf("event: content_block_stop");
+    await Bun.sleep(20);
+    push(full.slice(0, cut));
+    await Bun.sleep(50);
+    ac.abort(new DOMException("Model call superseded by user steering", "AbortError"));
+    await expect(call).rejects.toMatchObject({ name: "AbortError" });
+    const before = deltas.join("");
+    expect(spans).toEqual([{ kind: "end", fields: { status: "steered", interrupted: true } }]);
+    expect(deltas.join("")).toBe(before);
+  }, 10_000);
+
   test("only api.anthropic.com counts as the Anthropic router", () => {
     expect(isAnthropicRouter("https://api.anthropic.com")).toBe(true);
     expect(isAnthropicRouter("https://api.anthropic.com/v1")).toBe(true);

@@ -230,6 +230,19 @@ describe("security", () => {
     await waitFor(async () => (await post(base, { model: "nope", messages: [] })).status === 400 || undefined);
   }, 15_000);
 
+  test("a failure to make the temp folder frees the slot (no stuck 429)", async () => {
+    const { base } = await link();
+    const saved = process.env.TMPDIR;
+    process.env.TMPDIR = "/nonexistent/mosaic-link-test";
+    try {
+      expect((await post(base, { model: "claude-code", messages: MESSAGES })).status).toBe(500);
+    } finally {
+      if (saved === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = saved;
+    }
+    expect((await post(base, { model: "claude-code", messages: MESSAGES })).status).not.toBe(429);
+  }, 15_000);
+
   test("a step past the timeout returns 504 and the child is killed", async () => {
     const { base, pidFile } = await link({ FAKE_MODE: "sleep" }, 800);
     const resP = post(base, { model: "claude-code", messages: MESSAGES });

@@ -54,12 +54,23 @@ export function isAnthropicRouter(baseUrl: string): boolean {
 // that turn unchanged, as preserved thinking requires.
 const assistantContent = new WeakMap<object, Anthropic.Beta.BetaContentBlockParam[]>();
 
+/** The runtime's model-name rule (vendor model.js normalizeModelName): trim, drop surrounding quotes. */
+export function normalizeModelName(value: unknown): string {
+  let model = String(value ?? "").trim();
+  while (model.length >= 2 && ((model.startsWith('"') && model.endsWith('"')) || (model.startsWith("'") && model.endsWith("'")))) model = model.slice(1, -1).trim();
+  return model;
+}
+
 function parseArgs(raw: string): unknown {
   try {
     return raw ? JSON.parse(raw) : {};
   } catch {
     return { request: raw };
   }
+}
+
+function isToolResults(m: Anthropic.Beta.BetaMessageParam): boolean {
+  return m.role === "user" && Array.isArray(m.content) && m.content.length > 0 && m.content.every((b) => b.type === "tool_result");
 }
 
 /** OpenAI chat messages to a system prompt and Messages API turns. Tool results of one step share one user turn. */
@@ -86,11 +97,13 @@ export function toClaudeRequest(messages: ChatMessage[]): { system: string; mess
     } else {
       const block: Anthropic.Beta.BetaToolResultBlockParam = { type: "tool_result", tool_use_id: m.tool_call_id, content: m.content };
       const last = out[out.length - 1];
-      const lastIsResults = last?.role === "user" && Array.isArray(last.content) && last.content.every((b) => b.type === "tool_result");
-      if (lastIsResults) (last.content as Anthropic.Beta.BetaContentBlockParam[]).push(block);
+      if (last && isToolResults(last)) (last.content as Anthropic.Beta.BetaContentBlockParam[]).push(block);
       else out.push({ role: "user", content: [block] });
     }
   }
+  // The runtime trims history to its last entries, which can leave an assistant turn (or the tool
+  // results of a dropped one) first. The Messages API needs a user turn first.
+  while (out.length && (out[0]!.role === "assistant" || isToolResults(out[0]!))) out.shift();
   return { system: system.join("\n\n"), messages: out };
 }
 
@@ -152,7 +165,7 @@ export class ClaudeLlmClient {
     signal?: AbortSignal;
   }): Promise<ChatResult> {
     const { messages, tools, origin, parentSpan, onContentDelta, signal } = args;
-    const model = String(args.model ?? "").trim();
+    const model = normalizeModelName(args.model);
     if (!this.opts.apiKey || this.opts.apiKey === "demo") {
       throw new Error(`An Anthropic API key is required for ${ANTHROPIC_HOST}. Open AI model settings, paste your key, then select Save and use.`);
     }

@@ -117,9 +117,10 @@ export function startLink(opts: LinkOptions) {
     busy = true;
     const started = Date.now();
     const signal = AbortSignal.any([req.signal, AbortSignal.timeout(timeoutMs)]);
-    const cwd = await mkdtemp(join(tmpdir(), "mosaic-link-"));
+    let cwd: string | null = null;
     let status = 200;
     try {
+      cwd = await mkdtemp(join(tmpdir(), "mosaic-link-"));
       const { system, prompt } = renderPrompt(messages, tools);
       const raw = await run(picked.backend, { system, prompt, model: picked.model, cwd, env, signal });
       const step = parseStep(raw, toolNames);
@@ -139,7 +140,7 @@ export function startLink(opts: LinkOptions) {
       return json(status, errorBody(message), cors);
     } finally {
       busy = false;
-      await rm(cwd, { recursive: true, force: true });
+      if (cwd) await rm(cwd, { recursive: true, force: true });
     }
   }
 
@@ -147,6 +148,7 @@ export function startLink(opts: LinkOptions) {
     hostname: "127.0.0.1",
     port: opts.port,
     idleTimeout: 0, // a step can take minutes; the timeout above bounds it
+    maxRequestBodySize: MAX_BODY,
     async fetch(req) {
       const url = new URL(req.url);
       // DNS rebinding guard: only the loopback names reach the handlers.

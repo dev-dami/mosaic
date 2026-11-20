@@ -30,6 +30,6 @@ export const ROUTER_PRESETS: RouterPreset[] = [
     router: LINK_ROUTER,
     model: "claude-code",
     keyHint: "token from bun run link",
-    note: "Run bun run link on this computer, then paste the token it prints. Uses your Claude Code sign-in, so no API key. Model claude-code runs with its tools off; codex and the ACP agents need bun run link --enable codex,acp and can read files.",
+    note: "Run bun run link on this computer, then paste the token it prints. Uses your Claude Code sign-in, so no API key. Model claude-code runs with its tools off; codex and the ACP agents need bun run link --enable codex,acp and can read files. With a deployed Mosaic, start Link with MOSAIC_LINK_ORIGINS set to this page's origin.",
   },
 ];
