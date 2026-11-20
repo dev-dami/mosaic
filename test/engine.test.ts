@@ -176,3 +176,11 @@ describe("model setup", () => {
     expect(kinds).toContain("note:mosaic_link");
   });
 });
+
+describe("key leak guard (byok.js cookie on localhost)", () => {
+  test("the cookie the settings clear is the one the pinned byok.js writes", async () => {
+    const { BYOK_COOKIE } = await import("../src/host/settings/byok-store");
+    const source = await Bun.file(resolve(import.meta.dir, "../vendor/nsdeploy-runtime/byok.js")).text();
+    expect(source).toContain(`const COOKIE_NAME = "${BYOK_COOKIE}";`);
+  });
+});

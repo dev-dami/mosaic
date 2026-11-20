@@ -12,12 +12,14 @@ import { ActivityLog, ApprovalLayer, ReviewDock } from "./review";
 import { RunbookDocument } from "./runbook";
 import { applyRecipe, recipeFromHash } from "./recipe";
 import { MosaicProvider, useMosaic } from "./state";
+import { AgentEngineProvider, ModelSettingsButton } from "./settings";
 
 function App() {
   return (
     <MosaicProvider>
       <IconContext.Provider value={{ weight: "bold", size: 18 }}>
         <TooltipProvider>
+          <AgentEngineProvider>
           <div className="app">
             <TopBar />
             <div className="layout">
@@ -33,6 +35,7 @@ function App() {
             <EntryOverlays />
             <RecipeLoader />
           </div>
+          </AgentEngineProvider>
         </TooltipProvider>
       </IconContext.Provider>
     </MosaicProvider>
@@ -69,6 +72,7 @@ function TopBar() {
       </nav>
       <div className="top-right">
         <EntryTopbar />
+        <ModelSettingsButton />
         <ThemeSwitch />
         <BuildMark />
       </div>
