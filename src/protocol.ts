@@ -15,7 +15,7 @@ export type JsonSchema = {
   properties?: Record<string, JsonSchema>;
   required?: string[];
   items?: JsonSchema;
-  "x-mosaic-widget"?: "textarea";
+  "x-mosaic-widget"?: "textarea" | "datetime";
   [keyword: string]: unknown;
 };
 

@@ -1,4 +1,4 @@
-import { serveSite, type SiteDefinition } from "./site";
+import { InputError, serveSite, type SiteDefinition } from "./site";
 
 let scheduled = 0;
 
@@ -47,7 +47,7 @@ export const announcerSite: SiteDefinition = {
         required: ["text"],
         properties: {
           text: { type: "string", title: "Post", "x-mosaic-widget": "textarea" },
-          post_at: { type: "string", title: "Post at", description: "An ISO 8601 date and time, such as 2026-12-01T09:00:00Z. Leave empty to post now." },
+          post_at: { type: "string", title: "Post at", "x-mosaic-widget": "datetime", description: "An ISO 8601 date and time, such as 2026-12-01T09:00:00Z. Leave empty to post now." },
         },
       },
       output_schema: {
@@ -55,8 +55,10 @@ export const announcerSite: SiteDefinition = {
         properties: { id: { type: "string" }, posts_at: { type: "string" }, url: { type: "string" } },
       },
       run: (input: { text: string; post_at?: string }) => {
+        const when = new Date(input.post_at ?? Date.now());
+        if (Number.isNaN(when.getTime())) throw new InputError(`Post at "${input.post_at}" is not a date and time, such as 2026-12-01T09:00:00Z.`);
         scheduled += 1;
-        const postsAt = new Date(input.post_at ?? Date.now()).toISOString();
+        const postsAt = when.toISOString();
         const id = `post-${scheduled}`;
         return { id, posts_at: postsAt, url: `/posts/${id}` };
       },

@@ -41,7 +41,7 @@ export const newsletterSite: SiteDefinition = {
         properties: {
           subject: { type: "string", title: "Subject" },
           body: { type: "string", title: "Issue", "x-mosaic-widget": "textarea" },
-          send_at: { type: "string", title: "Send at", description: "An ISO 8601 date and time, such as 2026-12-01T09:00:00Z. Leave empty to send now." },
+          send_at: { type: "string", title: "Send at", "x-mosaic-widget": "datetime", description: "An ISO 8601 date and time, such as 2026-12-01T09:00:00Z. Leave empty to send now." },
         },
       },
       output_schema: { type: "object", properties: { id: { type: "string" }, recipients: { type: "integer" }, url: { type: "string" } } },

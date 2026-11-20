@@ -17,6 +17,11 @@ const schema = {
 };
 
 describe("compileForm", () => {
+  test("x-mosaic-widget datetime gives a datetime field, like format date-time", () => {
+    const [field] = compileForm({ type: "object", properties: { post_at: { type: "string", "x-mosaic-widget": "datetime" } } });
+    expect(field?.kind).toBe("datetime");
+  });
+
   test("maps each schema type to a widget", () => {
     const kinds = Object.fromEntries(compileForm(schema).map((f) => [f.key, f.kind]));
     expect(kinds).toEqual({ version: "text", notes: "textarea", highlights: "list", tone: "select", delay: "integer", draft: "boolean", meta: "json", at: "datetime" });

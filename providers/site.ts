@@ -1,9 +1,13 @@
+import { readFileSync } from "node:fs";
 import Ajv from "ajv";
 import { MANIFEST_PATH, type Capability, type Manifest } from "../src/protocol";
 import { runtimeRoute } from "../src/runtime-files";
 import { AGENT_MANIFEST_PATH, agenticArtifacts, BRIDGE_MANIFEST_PATH, DEFAULT_LOOK, LINKS_PATH, networkPath } from "./agentic";
-import bridgePage from "./bridge.html";
+import bridgePage from "./bridge.html"; // shortcut: removed in C7
 import { renderHome } from "./home";
+
+/** Thrown by a capability's run when the input passed the schema but the site still cannot use it. */
+export class InputError extends Error {}
 
 export type CapabilityImpl = Capability & { run: (input: any) => unknown };
 
@@ -27,12 +31,30 @@ export type BridgeConfig = {
   agent?: AgentInfo;
   allowed_hosts: string[];
   look: SiteLook;
-  capabilities: (Pick<Capability, "id" | "title" | "description" | "side_effects"> & { fields: Record<string, string> })[];
+  capabilities: (Pick<Capability, "id" | "title" | "description" | "side_effects" | "input_schema" | "output_schema"> & { fields: Record<string, string> })[];
 };
 
 export type Activity = { at: string; capability: string; input: unknown };
 
-const BRIDGE_PATH = "/mosaic/bridge";
+const BRIDGE_PATH = "/mosaic/bridge"; // shortcut: removed in C7
+
+/** The nsdeploy action bridge (MVP 0.3): the skill's template page, this site's actions module and their config. */
+export const ACTION_BRIDGE_PATH = "/bridge/action-bridge.html";
+export const BRIDGE_ACTIONS_PATH = "/bridge/bridge-actions.js";
+export const BRIDGE_CONFIG_PATH = "/bridge/bridge-config.json";
+const actionBridgePage = readFileSync(new URL("./bridge-page.html", import.meta.url), "utf8");
+let actionsBundle: Promise<string> | undefined;
+
+/** providers/bridge-actions.ts built for the browser once per process; every site serves the same code. */
+function bridgeActionsModule(): Promise<string> {
+  actionsBundle ??= Bun.build({ entrypoints: [new URL("./bridge-actions.ts", import.meta.url).pathname], target: "browser", format: "esm", minify: true }).then(
+    async (result) => {
+      if (!result.success || !result.outputs[0]) throw new AggregateError(result.logs, "bridge-actions.ts did not build");
+      return result.outputs[0].text();
+    },
+  );
+  return actionsBundle;
+}
 
 export function createSite(def: SiteDefinition, origin: string, allowedHosts: string[]) {
   const ajv = new Ajv({ allErrors: true });
@@ -53,11 +75,13 @@ export function createSite(def: SiteDefinition, origin: string, allowedHosts: st
     ...(def.agent ? { agent: def.agent } : {}),
     allowed_hosts: allowedHosts,
     look: def.look ?? DEFAULT_LOOK,
-    capabilities: def.capabilities.map(({ id, title, description, side_effects, input_schema }) => ({
+    capabilities: def.capabilities.map(({ id, title, description, side_effects, input_schema, output_schema }) => ({
       id,
       title,
       description,
       side_effects,
+      input_schema,
+      output_schema,
       fields: Object.fromEntries(Object.entries(input_schema.properties ?? {}).map(([key, schema]) => [key, schema.title ?? key])),
     })),
   };
@@ -75,7 +99,15 @@ export function createSite(def: SiteDefinition, origin: string, allowedHosts: st
     if (!capability || !validate) return Response.json({ error: `unknown capability ${id}` }, { status: 404 });
     const input = await req.json().catch(() => undefined);
     if (!validate(input)) return Response.json({ error: ajv.errorsText(validate.errors) }, { status: 400 });
-    const output = await capability.run(input);
+    let output: unknown;
+    try {
+      output = await capability.run(input);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (error instanceof InputError) return Response.json({ error: message }, { status: 400 });
+      console.error(`${def.name}: ${id} failed:`, error);
+      return Response.json({ error: `${def.name} could not do this: ${message}` }, { status: 500 });
+    }
     if (capability.side_effects === "write") activity.unshift({ at: new Date().toISOString(), capability: id, input });
     return Response.json(output);
   }
@@ -97,10 +129,21 @@ export function serveSite(def: SiteDefinition, at: { port?: number; origin?: str
     port,
     routes: {
       "/": () => site.homePage(),
+      // shortcut: removed in C7 (the capabilities/0 manifest and the bridge/0 page stay until the host moves)
       [MANIFEST_PATH]: () =>
         Response.json(site.manifest, { headers: { "access-control-allow-origin": "*" } }),
-      [BRIDGE_PATH]: bridgePage,
-      "/mosaic/bridge-config": () => Response.json(site.bridgeConfig),
+      [BRIDGE_PATH]: bridgePage, // shortcut: removed in C7
+      "/mosaic/bridge-config": () => Response.json(site.bridgeConfig), // shortcut: removed in C7
+      // The action bridge a caller's runtime frames (reads) or opens in a popup (writes). Only
+      // Mosaic hosts may frame it; no COOP, so the popup keeps its opener.
+      [ACTION_BRIDGE_PATH]: () =>
+        new Response(actionBridgePage, {
+          headers: { "content-type": "text/html; charset=utf-8", "content-security-policy": `frame-ancestors ${allowedHosts.join(" ")}` },
+        }),
+      [BRIDGE_ACTIONS_PATH]: async () =>
+        new Response(await bridgeActionsModule(), { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-cache" } }),
+      // Same origin only: read by the actions module inside the bridge.
+      [BRIDGE_CONFIG_PATH]: () => Response.json(site.bridgeConfig),
       [AGENT_MANIFEST_PATH]: publicJson(site.agentic.agentManifest),
       [networkPath(def)]: publicJson(site.agentic.network),
       [LINKS_PATH]: publicJson(site.agentic.links),
