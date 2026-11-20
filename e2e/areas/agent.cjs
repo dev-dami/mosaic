@@ -19,13 +19,4 @@ module.exports = {
   peerStep: (page, port) => page.locator(`.agent-step.peer[data-origin="${origin(port)}"]`),
   /** The turn's Stop button. */
   stopButton: (page) => page.locator(".agent-turn-head").getByRole("button", { name: "Stop" }),
-  /** Allow (always) the next `n` "Contact <host>?" dialogs the turn raises. */
-  async allowContacts(page, n) {
-    for (let i = 0; i < n; i++) {
-      const dialog = page.getByRole("dialog", { name: /^Contact / });
-      await dialog.waitFor({ timeout: 15_000 });
-      await dialog.getByRole("button", { name: /^Always allow/ }).click();
-      await dialog.waitFor({ state: "detached" });
-    }
-  },
 };

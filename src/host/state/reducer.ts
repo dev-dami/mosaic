@@ -1,6 +1,6 @@
 // The pure reducer for workspace state. Owner: foundation (shared).
 import { hueOfColor, siteHue } from "../hue";
-import { applyTrace, applyTurnEvent, startTurn, stopTurn } from "../agentic/turn";
+import { applyTrace, applyTurnEvent, settleTurn, startTurn, stopTurn } from "../agentic/turn";
 import type { Action, ConnectStage, State, Trace, TraceStage } from "./types";
 
 const STAGES: ConnectStage[] = ["consent", "manifest", "network", "validate", "bridge", "build"];
@@ -189,6 +189,9 @@ export function reducer(state: State, action: Action): State {
 
     case "turn/stopped":
       return state.turn ? { ...state, turn: stopTurn(state.turn) } : state;
+
+    case "turn/settled":
+      return state.turn ? { ...state, turn: settleTurn(state.turn) } : state;
 
     case "turn/failed":
       return state.turn && state.turn.status === "running" ? { ...state, turn: { ...state.turn, status: "failed", error: action.message } } : state;

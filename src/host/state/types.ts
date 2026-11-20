@@ -139,4 +139,6 @@ export type Action =
   | { type: "turn/trace"; event: TraceEvent }
   | { type: "turn/event"; event: TurnEvent }
   | { type: "turn/stopped" }
+  /** The runtime finished the turn (after a Stop: it has drained). */
+  | { type: "turn/settled" }
   | { type: "turn/failed"; message: string };

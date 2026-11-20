@@ -2,7 +2,7 @@
 // peer steps with capability cards, Mosaic's own composer step, visible problems and a summary.
 import { describe, expect, test } from "bun:test";
 import type { TraceEvent, TurnEvent } from "../src/host/agentic/engine";
-import { applyTrace, applyTurnEvent, composerLabel, previewValue, startTurn, stopTurn, type AgentTurn } from "../src/host/agentic/turn";
+import { applyTrace, applyTurnEvent, composerLabel, previewValue, settleTurn, startTurn, stopTurn, type AgentTurn } from "../src/host/agentic/turn";
 
 let seq = 0;
 const ev = (phase: TraceEvent["phase"], kind: string, fields: Record<string, unknown> = {}): TraceEvent => ({ phase, kind, seq: seq++, wall: 0, ...fields });
@@ -46,7 +46,7 @@ describe("agent turn mapping", () => {
     expect(composerLabel(composer as never)).toBe('Composer drafted "Lumen v1.0 brings a new plugin API."');
     expect(peer).toMatchObject({ kind: "peer", host: "localhost:4101", network: "pagewright", brand: "Pagewright", request: "Preview the docs update", status: "ok", response: "The docs preview is ready." });
     if (peer?.kind !== "peer") throw new Error("peer");
-    expect(peer.cards).toEqual([{ id: "s9", action: "preview-docs-update", input: { version: "v1.0" }, status: "ok", preview: '{"status":"succeeded"}', error: undefined }]);
+    expect(peer.cards).toEqual([{ id: "s9", action: "preview-docs-update", input: { version: "v1.0" }, status: "ok", startedAt: 0, preview: '{"status":"succeeded"}', error: undefined }]);
   });
 
   test("only user-visible text is narration; completion gives the summary", () => {
@@ -102,6 +102,25 @@ describe("agent turn mapping", () => {
     expect(applyTrace(before, ev("start", "compile", { id: "c1" }))).toBe(before);
     const t = fold(DEMO);
     expect(applyTrace(t, ev("start", "remote_call", { id: "z1", parent: "elsewhere", peerOrigin: "x" }))).toBe(t);
+  });
+
+  test("Stop drains until the runtime settles", () => {
+    const stopped = stopTurn(fold(DEMO.slice(0, 15)));
+    expect(stopped.draining).toBe(true);
+    expect(settleTurn(stopped)).toMatchObject({ status: "stopped", draining: false });
+  });
+
+  test("a turn that cannot reach the router says which router, in plain words", () => {
+    const t = fold([...DEMO.slice(0, 4), turnEv("turn.failed", { error: "Failed to fetch" })]);
+    expect(t.error).toBe("Mosaic could not reach the model router api.otari.ai. Check AI model settings.");
+  });
+
+  test("a peer step takes its origin from the files the runtime fetched", () => {
+    const t = fold([
+      ...DEMO.slice(0, 3),
+      ev("start", "remote_call", { id: "p1", parent: "s2", peerOrigin: "docs.example", network: "pagewright", fetchedUrls: ["https://docs.example/agent-manifest.json"], requestPayload: { user_message: { text: "x" } } }),
+    ]);
+    expect(t.steps[0]).toMatchObject({ kind: "peer", host: "docs.example", origin: "https://docs.example" });
   });
 
   test("previews parse when complete", () => {

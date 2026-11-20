@@ -10,7 +10,7 @@
 import type { TraceEvent, TurnEvent } from "./engine";
 import { COMPOSER_AGENT } from "./network";
 
-export const WEBSITE_TOOL = "website_";
+const WEBSITE_TOOL = "website_";
 
 export type StepStatus = "running" | "ok" | "error";
 
@@ -21,6 +21,8 @@ export type TurnCard = {
   action: string;
   input: unknown;
   status: StepStatus;
+  /** Wall-clock start (ms), to tell this call's registry answer from an earlier run's. */
+  startedAt: number;
   /** The tool result as the runtime previewed it (the full value arrives through the action registry). */
   preview?: string;
   error?: string;
@@ -32,6 +34,8 @@ export type TurnStep =
       id: string;
       /** The host the runtime called, as it drew it ("localhost:4101"). */
       host: string;
+      /** The peer's origin, from the first file the runtime fetched from it, when known. */
+      origin?: string;
       network: string;
       brand?: string;
       request: string;
@@ -54,6 +58,8 @@ export type AgentTurn = {
   narration: string;
   answer?: string;
   error?: string;
+  /** Stopped, and the runtime is still finishing what was in flight. */
+  draining?: boolean;
   /** The run span's id, once the runtime opened it. Events outside its subtree are ignored. */
   runId: string | null;
   /** Span id → parent id and kind, for every span inside the run. */
@@ -127,10 +133,16 @@ export function applyTrace(turn: AgentTurn, ev: TraceEvent): AgentTurn {
     }
     if (ev.kind === "remote_call" && ev.id) {
       const payload = ev.requestPayload as { user_message?: { text?: string } } | undefined;
+      const fetched = Array.isArray(ev.fetchedUrls) ? ev.fetchedUrls.find((u): u is string => typeof u === "string") : undefined;
+      let origin: string | undefined;
+      try {
+        origin = fetched ? new URL(fetched).origin : undefined;
+      } catch {}
       const step: TurnStep = {
         kind: "peer",
         id: ev.id,
         host: str(ev.peerOrigin),
+        origin,
         network: str(ev.network),
         brand: typeof ev.brand === "string" && ev.brand ? ev.brand : undefined,
         request: str(payload?.user_message?.text),
@@ -146,7 +158,7 @@ export function applyTrace(turn: AgentTurn, ev: TraceEvent): AgentTurn {
       if (ev.tool.startsWith(WEBSITE_TOOL)) {
         const peer = nearest(next, ev.parent, "remote_call");
         if (!peer) return next;
-        const card: TurnCard = { id: ev.id, action: ev.tool.slice(WEBSITE_TOOL.length), input: ev.args ?? {}, status: "running" };
+        const card: TurnCard = { id: ev.id, action: ev.tool.slice(WEBSITE_TOOL.length), input: ev.args ?? {}, status: "running", startedAt: ev.wall };
         return patchStep(next, peer, (s) => (s.kind === "peer" ? { ...s, cards: [...s.cards, card] } : s));
       }
     }
@@ -210,16 +222,32 @@ export function applyTurnEvent(turn: AgentTurn, ev: TurnEvent): AgentTurn {
     case "turn.completed":
       return { ...turn, status: "done", answer: ev.result?.text ?? turn.narration, steps: settle(turn.steps) };
     case "turn.failed":
-      return { ...turn, status: "failed", error: ev.error || "The turn failed.", steps: settle(turn.steps) };
+      return { ...turn, status: "failed", error: turnError(turn, ev.error || "The turn failed."), steps: settle(turn.steps) };
     default:
       return turn;
   }
 }
 
+/**
+ * A network failure at the turn level is the top agent's model call: the router could not be
+ * reached (offline, or blocked by the page's Content-Security-Policy). Say so in plain words.
+ */
+function turnError(turn: AgentTurn, error: string): string {
+  if (turn.model?.routerHost && /failed to fetch|networkerror|load failed|content security policy/i.test(error)) {
+    return `Mosaic could not reach the model router ${turn.model.routerHost}. Check AI model settings.`;
+  }
+  return error;
+}
+
 /** Stop: nothing more from this turn is shown, and steps still running say so. */
 export function stopTurn(turn: AgentTurn): AgentTurn {
   if (turn.status !== "running") return turn;
-  return { ...turn, status: "stopped", steps: settle(turn.steps, "Stopped") };
+  return { ...turn, status: "stopped", draining: true, steps: settle(turn.steps, "Stopped") };
+}
+
+/** The runtime finished the turn; after a Stop, it has drained. */
+export function settleTurn(turn: AgentTurn): AgentTurn {
+  return turn.draining ? { ...turn, draining: false } : turn;
 }
 
 function settle(steps: TurnStep[], why = "Did not finish"): TurnStep[] {

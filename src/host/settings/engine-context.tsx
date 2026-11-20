@@ -53,6 +53,13 @@ export function AgentEngineProvider({ children }: { children: ReactNode }) {
     (req: ConsentRequest) => new Promise<ConsentDecision>((resolve) => setConsents((q) => [...q, { req, resolve }])),
     [],
   );
+  // Stop: the contact requests a stopped turn left waiting are declined, and their dialogs close.
+  const cancelConsents = useCallback(() => {
+    setConsents((q) => {
+      for (const c of q) if (c.req.kind !== "connect") c.resolve("decline");
+      return q.filter((c) => c.req.kind === "connect");
+    });
+  }, []);
 
   // Load byok.js and the first setup.
   useEffect(() => {
@@ -79,7 +86,7 @@ export function AgentEngineProvider({ children }: { children: ReactNode }) {
     const n = ++build.current;
     setStatus("loading");
     const prev = agentRef.current;
-    const next = prev ? prev.rebuild(setup) : MosaicAgent.create({ setup, onConsent });
+    const next = prev ? prev.rebuild(setup) : MosaicAgent.create({ setup, onConsent, cancelConsents });
     next.then(
       (a) => {
         if (n !== build.current) return;
@@ -94,7 +101,7 @@ export function AgentEngineProvider({ children }: { children: ReactNode }) {
         setError(e.message);
       },
     );
-  }, [setup, onConsent]);
+  }, [setup, onConsent, cancelConsents]);
 
   const apply = useCallback(
     (next: ByokStore) => {
@@ -152,6 +159,7 @@ function ConsentDialog({ request, routerHost, onDecide }: { request: ConsentRequ
                 ? `Mosaic will load the agent network "${request?.peerLabel}" that ${host} publishes and run it in this browser.`
                 : `Mosaic's agent wants to run ${request?.peerLabel && request.peerLabel !== host ? `"${request.peerLabel}" from ` : ""}${host} for this request.`}
             </p>
+            {connecting && <p className="consent-turns">Mosaic's agent may use {host} during your turns. Disconnect it to stop.</p>}
             {!connecting && request?.requestText && <blockquote className="consent-request">{request.requestText}</blockquote>}
             <p className="settings-note">
               {host} gets requests for its own published files and actions only. Your key stays with {routerHost}.

@@ -90,6 +90,7 @@ function ModeLine() {
   const engine = useAgentEngine();
   const [settings, setSettings] = useState(false);
   const running = state.turn?.status === "running";
+  const draining = !!state.turn?.draining;
   const model = engine.agent?.mode === "model" ? engine.agent.modelName : null;
   return (
     <div className={`mode-line ${engine.mode}`} data-mode={engine.mode}>
@@ -107,7 +108,11 @@ function ModeLine() {
         AI model settings
       </button>
       {engine.mode === "model" &&
-        (running ? (
+        (draining ? (
+          <Button variant="secondary" size="sm" icon={<StopIcon />} disabledReason="The stopped turn is still finishing a step">
+            Stopping…
+          </Button>
+        ) : running ? (
           <Button variant="secondary" size="sm" icon={<StopIcon />} onClick={actions.stopTurn}>
             Stop
           </Button>

@@ -24,7 +24,7 @@ export function AgentRunbook() {
       <header className="agent-turn-head">
         <span className="label">Mosaic's agent</span>
         <span className="agent-turn-status" role="status">
-          {running ? "Running in this browser" : turn.status === "done" ? "Done" : turn.status === "stopped" ? "Stopped" : "Stopped with an error"}
+          {running ? "Running in this browser" : turn.status === "done" ? "Done" : turn.status === "stopped" ? (turn.draining ? "Stopping…" : "Stopped") : "Stopped with an error"}
         </span>
         {turn.model && (
           <span className="agent-turn-model" data-testid="turn-model">
@@ -53,7 +53,9 @@ export function AgentRunbook() {
       )}
       {turn.status === "stopped" && (
         <Banner tone="warning" icon={<StopIcon />} className="agent-error">
-          You stopped this turn. No further step starts and no approval window opens for it.
+          {turn.draining
+            ? "Stopping… A step already in flight is finishing. No further step starts and no approval window opens for this turn."
+            : "You stopped this turn. No further step starts and no approval window opens for it."}
         </Banner>
       )}
       {turn.status === "done" && turn.answer && (
@@ -84,7 +86,7 @@ function PeerStep({ step, n }: { step: Extract<TurnStep, { kind: "peer" }>; n: n
   const { model } = useMosaic();
   const hue = useHueStyle();
   const conn = model.siteOrder.map((o) => model.connFor(o)).find((c) => c && hostOf(c.site.site.origin) === step.host);
-  const origin = conn?.site.site.origin ?? `http://${step.host}`;
+  const origin = conn?.site.site.origin ?? step.origin ?? `${location.protocol}//${step.host}`;
   const name = conn?.site.site.name ?? step.brand ?? step.network;
   return (
     <li className={`agent-step peer ${step.status}`} data-origin={origin} data-network={step.network} style={hue(origin)}>
@@ -113,12 +115,16 @@ function CapCard({ card, origin, conn }: { card: TurnCard; origin: string; conn:
   const write = cap?.side_effects === "write";
   const run = cap ? state.runs[capKey(origin, cap.id)] : undefined;
   // The full value comes from the action registry (store); the trace's preview is the fallback.
-  const output = run?.status === "done" ? run.output : previewValue(card.preview);
+  // This call's own registry answer (not an earlier run of the same capability) wins over the
+  // trace: a write approved before Stop stays Published.
+  const answered = run && run.status !== "idle" && run.status !== "running" && run.at.getTime() >= card.startedAt ? run : undefined;
+  const output = answered?.status === "done" ? answered.output : previewValue(card.preview);
+  const status = answered?.status === "done" ? "ok" : card.status;
   const tag =
-    card.status === "running" ? (write ? "Waiting for approval" : "Running") : card.status === "error" ? "Failed" : run?.status === "error" ? (run.denied ? "Denied" : run.unknown ? "Outcome unknown" : "Not done") : write ? "Published" : "Read";
-  const tone = card.status === "running" ? "info" : card.status === "error" || run?.status === "error" ? "danger" : "success";
+    status === "running" ? (write ? "Waiting for approval" : "Running") : status === "error" ? "Failed" : answered?.status === "error" ? (answered.denied ? "Denied" : answered.unknown ? "Outcome unknown" : "Not done") : write ? "Published" : "Read";
+  const tone = status === "running" ? "info" : status === "error" || answered?.status === "error" ? "danger" : "success";
   return (
-    <div className={`agent-card ${write ? "write" : "read"} ${card.status}`} data-action={card.action}>
+    <div className={`agent-card ${write ? "write" : "read"} ${status}`} data-action={card.action}>
       <div className="agent-card-head">
         <span className="act-kind">{write ? "write" : "read"}</span>
         <b>{cap?.title ?? humanKey(card.action)}</b>
@@ -132,12 +138,12 @@ function CapCard({ card, origin, conn }: { card: TurnCard; origin: string; conn:
           <OutputView value={card.input} origin={origin} />
         </div>
       )}
-      {card.status === "error" && card.error && (
+      {status === "error" && card.error && (
         <p className="agent-step-error" role="alert">
           <WarningIcon aria-hidden="true" /> {card.error}
         </p>
       )}
-      {card.status === "ok" && output !== undefined && (
+      {status === "ok" && output !== undefined && (
         <div className="agent-card-output output">
           <span className="label">Output</span>
           <OutputView value={output} origin={origin} />

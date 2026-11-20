@@ -77,6 +77,8 @@ export interface RuntimeEngine {
   /** The runtime's action registry: every connected site's bridge actions (agentic/catalog.ts). */
   actions: ActionRegistry;
   onConsent: ((info: ConsentRequest) => Promise<ConsentDecision>) | null;
+  /** Hosts the person allowed for good ("always"), keyed by host (engine.js requestConsent). */
+  consent: Map<string, string>;
   onLinkRequired: ((info: { reference: string }) => Promise<string | null>) | null;
   loadTop(): Promise<{ network: RuntimeNetwork; validation: { errors: string[] } }>;
   requestConsent(info: ConsentRequest): Promise<"allow" | "decline">;
@@ -127,7 +129,7 @@ export function routerHostOf(setup: Partial<ModelSetup>): string {
 // ---- The engine class ----------------------------------------------------------------------------
 
 /** The composition object runTurn shares across every hop of one turn (engine.js runTurn). */
-export interface TurnBudget {
+interface TurnBudget {
   maxRemoteCalls: number;
   maxAgentCalls: number;
   deadline: number;
@@ -189,6 +191,8 @@ export interface MosaicAgentOptions {
   onConsent: (req: ConsentRequest) => Promise<ConsentDecision>;
   originUrl?: string;
   runtimeUrl?: string;
+  /** Called when a turn is stopped: decline the contact requests still waiting for the person. */
+  cancelConsents?: () => void;
 }
 
 export interface BoundNetwork {
@@ -225,13 +229,14 @@ export class MosaicAgent {
     const Engine = makeMosaicEngineClass(rt.Engine);
     const originUrl = options.originUrl ?? location.origin;
     const engine = new Engine(engineOptions(options.setup, originUrl));
-    engine.onConsent = options.onConsent;
     // Binding happens only through connectNetwork: the runtime's own link path accepts a wrong
     // network name when a site publishes one network (engine.js _normalizeLinkTarget).
     engine.onLinkRequired = async () => null;
     const { validation } = await engine.loadTop();
     if (validation.errors.length) throw new Error(`Mosaic's network failed validation: ${validation.errors.join("; ")}`);
     const agent = new MosaicAgent(engine, options);
+    // A stopped turn contacts nobody new; connecting a site is the person's own act and still asks.
+    engine.onConsent = (req) => (agent.stopping && req.kind !== "connect" ? Promise.resolve("decline") : options.onConsent(req));
     agent.watchRegistry();
     agent.prune();
     return agent;
@@ -247,8 +252,18 @@ export class MosaicAgent {
   private watchRegistry() {
     const registry = this.engine.actions;
     const execute = registry.execute.bind(registry);
+    // Writes run one at a time: sibling tool calls (runner.js executeToolCalls runs up to four)
+    // must not raise two approval windows. Later writes wait in order; reads never wait.
+    let writes: Promise<unknown> = Promise.resolve();
     registry.execute = async (plan, confirm, invocationId) => {
       const run: ActionRun = { invocationId, entries: plan.map((p) => p.entry), args: plan.map((p) => p.args) };
+      const isWrite = plan.some((p) => p.entry.effect !== "read");
+      let release = () => {};
+      if (isWrite) {
+        const before = writes;
+        writes = new Promise<void>((r) => (release = r));
+        await before;
+      }
       for (const w of this.actionWatchers) w.start?.(run);
       let receipts: ActionReceipt[] | null = null;
       try {
@@ -256,9 +271,13 @@ export class MosaicAgent {
         return receipts;
       } finally {
         for (const w of this.actionWatchers) w.end?.(run, receipts);
+        release();
       }
     };
   }
+
+  /** True from Stop until the next turn starts: contact requests are declined meanwhile. */
+  private stopping = false;
 
   /** Listen to the registry's runs. Returns the unsubscribe function. */
   watchActions(watcher: { start?: (run: ActionRun) => void; end?: (run: ActionRun, receipts: ActionReceipt[] | null) => void }): () => void {
@@ -273,6 +292,8 @@ export class MosaicAgent {
    * store refuses any write window it asks for.
    */
   stopTurn(): void {
+    this.stopping = true;
+    this.options.cancelConsents?.();
     const budget = (this.engine as RuntimeEngine & { mosaicComposition?: TurnBudget | null }).mosaicComposition;
     if (!budget) return;
     budget.deadline = 0;
@@ -283,6 +304,8 @@ export class MosaicAgent {
   /** A new agent on another model setup, with the same runtime-connected networks. */
   async rebuild(setup: ModelSetup): Promise<MosaicAgent> {
     const next = await MosaicAgent.create({ ...this.options, setup });
+    // "Always allow" answers survive a model change.
+    for (const [host, decision] of this.engine.consent) next.engine.consent.set(host, decision);
     for (const bound of this.connected) {
       next.network.setLink(bound.slot, bound.url);
       next.engine.runtimeAllowedPeers.add(bound.origin);
@@ -341,7 +364,10 @@ export class MosaicAgent {
     const net = this.network;
 
     const existing = Object.entries(net.links).find(([, target]) => target === url);
-    if (existing) return this.connected.find((b) => b.url === url) ?? { slot: existing[0], network: name, origin, url };
+    if (existing) {
+      if (opts.consented) this.allowInTurns(parsed.host);
+      return this.connected.find((b) => b.url === url) ?? { slot: existing[0], network: name, origin, url };
+    }
 
     // `consented`: the caller already asked, before its own first fetch (the connect palette does).
     const decision = opts.consented ? "allow" : await this.engine.requestConsent({ kind: "connect", peerOrigin: parsed.host, peerLabel: name, requestText: `Connect ${name} at ${parsed.host}` });
@@ -358,6 +384,7 @@ export class MosaicAgent {
       const session = await this.engine.resolveRemote(url, [], null);
       const bound = { slot, network: session.network.name, origin, url };
       this.connected.push(bound);
+      this.allowInTurns(parsed.host);
       this.engine.trace.note("mosaic_link", { slot, network: bound.network, peerOrigin: parsed.host });
       return bound;
     } catch (err) {
@@ -375,6 +402,14 @@ export class MosaicAgent {
    * forgets the resolved network, and drops its actions from the registry. A site the host's own
    * manifest allows stays allowed there; with no slot bound the model still cannot reach it.
    */
+  /**
+   * Allowing "Connect <site>?" also allows Mosaic's agent to call that site in later turns, so a
+   * turn does not ask again for a site the person just connected. Disconnect takes it back.
+   */
+  private allowInTurns(host: string) {
+    this.engine.consent.set(host, "always");
+  }
+
   disconnectNetwork(rawUrl: string): void {
     const url = rawUrl.replace(/\/+$/, "");
     const cut = url.lastIndexOf("/");
@@ -389,6 +424,7 @@ export class MosaicAgent {
     const actions = this.engine.actions as unknown as { entries: Map<string, { base: string; network: string }>; remoteLoads?: Map<string, unknown> };
     for (const [ref, entry] of actions.entries) if (entry.base.replace(/\/+$/, "") === origin && entry.network === name) actions.entries.delete(ref);
     actions.remoteLoads?.delete(`${origin}::${name}`);
+    this.engine.consent.delete(new URL(origin).host);
     this.engine.trace.note("mosaic_unlink", { network: name, peerOrigin: new URL(origin).host });
     this.prune();
   }
@@ -399,6 +435,7 @@ export class MosaicAgent {
    */
   runTurn(text: string, slyData: Record<string, unknown> = {}): AsyncIterable<TurnEvent> {
     if (this.mode === "manual") throw new Error(NO_KEY_MESSAGE);
+    this.stopping = false;
     return this.engine.streamTurn(text, { slyData });
   }
 }
