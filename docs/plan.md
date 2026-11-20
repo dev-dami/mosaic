@@ -1,76 +1,65 @@
 # Mosaic plan
 
-Updated 2026-11-19. Challenge entry closes 2027-01-11 (from press coverage of the Open Agentic Web
-Challenge; check the Devpost page).
+Updated 2026-11-20. The Open Agentic Web Challenge closes on 2027-01-11 (Devpost). The submission needs
+a text description, a public YouTube video under 2 minutes that shows the project in a browser, and the
+Otari account email. Draft text: [submission.md](submission.md). Conformance map: [judging.md](judging.md).
 
-## What the reference already does
+## Decisions
 
-Read from `projnanda/webagentica` at commit `34e2f3b` (2026-11-11):
+- **The format is the sponsor's spec.** On 2026-11-20 the owner chose to rebuild on the agentic-web MVP
+  spec, Profile 0.3: `agent-manifest.json`, Neuro SAN network JSON, `links.json` and nsdeploy actions.
+  The earlier option B of this plan (read tool declarations from a signed WebAgentica `agent.pkg`) is
+  **superseded**. Options A and C are superseded too. Mosaic's own formats (capabilities/0 and
+  bridge/0) are deleted.
+- **The runtime is the sponsor's.** Mosaic vendors the nsdeploy browser runtime from the agentic-web
+  `agentify-website` skill (Apache-2.0, commit `0516537`) into `vendor/nsdeploy-runtime/`, unchanged.
+  Mosaic's own work sits on top: composition across sites, site-owned approval, Scout and recipes.
+- **Inference.** Every manifest publishes the Otari router. The visitor brings a key (BYOK). With no
+  key, Mosaic runs in manual mode and makes no model call, so the host never pays.
 
-- **`agent.pkg`** is a signed (Ed25519), data-only package: manifest, workflow graph, skills, JSON
-  schemas, tool declarations, policy. It holds no executable code (`spec/agent-pkg-v0.md`).
-- **Tool declarations** (`agents/webair/tools/*.tool.json`) already have the shape that Mosaic needs:
-  `endpoint`, `method`, `input_schema`, `output_schema`, `side_effects`, `approval_required`,
-  `permissions`, `domains`.
-- **A site's own package can call that site's own API.** WebAir's package searches flights, gets a
-  quote and simulates a purchase through WebAir's API, run in the person's runtime with the person's
-  grants. So "a site's agent cannot act on its own site" is **not** the gap. Do not pitch it that way.
-- **Discovery**: a site advertises packages with `<link rel="agent-package">` in its page head.
-- **Two runtimes**: a Python reference (`agentpkg`) and a TypeScript core that runs in Chrome and in
-  Node (`chrome-agent-browser/src/core`, Apache-2.0). The TypeScript core opens and verifies packages.
-- **network.v0** gives bounded, model-chosen delegation between roles **inside one package**.
+## What is built
 
-## The real gap that Mosaic fills
+Each item is on the integration branch `goal/sponsor-spec` unless it says otherwise.
 
-- **No composition across publishers.** One package comes from one publisher. network.v0 refuses
-  remote roles (R-1: "a remote role (B-186; A2A later under the same bounds)"), and the threat model
-  says "Cross-origin delegation is not supported."
-- **No interface from capabilities.** The runtimes run a package's own workflow. Nothing turns the
-  capabilities of several sites into one working application.
-- **No site-owned consent across origins.** Approval happens in the runtime. There is no way for a
-  site to show its own prompt for a write that another page asks for.
-
-Mosaic is the composition layer: many publishers' capabilities, one workspace, writes approved by
-each site.
-
-## Open decision: where capability declarations come from
-
-| Option | For | Against |
+| Area | State | Where |
 |---|---|---|
-| A. Mosaic manifest only (the spike) | Simple. Works today. | A second format beside agent.pkg. No signature. Judges may see it as a parallel standard. |
-| **B. Read tool declarations from the site's signed agent.pkg** (recommended) | One artifact for publishers. Signature and publisher trust come from the reference core. Strong "spec-compliant" story. | Needs the TypeScript core in the browser, and package build and signing for each demo site. |
-| C. Both: agent.pkg first, manifest as fallback | Most compatible. | Two code paths to test. |
+| Vendored runtime, served at `/runtime/*` on every origin | built | `vendor/nsdeploy-runtime/`, `src/runtime-files.ts` |
+| Site generator: manifest, network, `links.json`, bridge manifest, CORS on public files only | built | `providers/agentic.ts`, `providers/site.ts` |
+| Bridge actions with `callerOrigins` and `confirmsInWindow`, the site's own sheet, `frame-ancestors` | built | `providers/bridge-actions.ts`, `providers/sheet.ts` |
+| Host manifest and `mosaic.network.json` (agents `mosaic` and `composer`, link slots, `sly_data` allow list) | built | `src/host/agentic/network.ts` |
+| Engine wrapper: consent, exact-name binding, hidden spare slots, budget of 8 | built | `src/host/agentic/engine.ts` |
+| AI model dialog (BYOK profiles through `byok.js`) and the consent dialog | built | `src/host/settings/` |
+| Connect by URL through the runtime, review dock with receipts | built | `src/host/entry/`, `src/host/review/` |
+| Agent turn: the outcome runs Mosaic's network, peer steps with site chips, `website_` cards with input and output, writes wait for "Open <site>" | built, lands next (card C9) | `src/host/agentic/turn.ts`, `src/host/runbook/turn.tsx` |
+| Scout publishes conformant agent files for learned sites | built | `agent/scout.ts`, `agent/skill.ts` |
+| Scout target allow list, browser fence, request limits, Caddy files | built | `agent/targets.ts`, `deploy/` |
+| Recipe links `recipe/1` (outcome, network URLs, Scout templates, no key) | built | `src/host/recipe.ts` |
+| Deploy build: one prebuilt single-file server, one Vercel project per role | built | `scripts/build-deploy.ts`, `vercel.json`, `docs/deploy.md` |
 
-Recommendation: **B**. Keep the bridge (it is the extension), and get the declarations from
-`<link rel="agent-package">` and the package's `tools/*.tool.json`. The bridge then needs one more
-field per tool, for example `extensions["org.mosaic:bridge"]`, because the reference leaves
-cross-origin transport out of scope.
+## Remaining work
 
-## Phases
-
-Each phase ends with the end-to-end test green.
-
-1. **Spike (done).** Manifest discovery, schema-to-form compiler, cross-origin bridge with site-owned
-   approval, three demo sites, a site added at runtime, refusal of a host the site does not allow.
-2. **Signed declarations.** Option B: discover and verify packages with the WebAgentica TypeScript core,
-   map tool declarations to capabilities, sign the demo sites' packages.
-3. **Data flow between capabilities (first cut done).** Fill one capability's input from another's
-   output (release notes into the announcement). Name matching, document properties, and one-click
-   manual links work today; typed matching beyond strings does not.
-4. **Real credentials.** Sign-in for a site inside the bridge (popup sign-in, or the Storage Access API,
-   because browsers partition or block third-party iframe cookies). This is the largest remaining risk.
-5. **Recipes.** Save a workspace as a declarative recipe: site URLs, capability ids, layout, data
-   bindings. Another person loads it with their own credentials.
-6. **Deploy and demo.** Each site on its own HTTPS domain. Record the "add a site Mosaic has never
-   seen" moment.
+| Card | Work | Needs |
+|---|---|---|
+| C9 | Land the agent turn after its check. | - |
+| C12 | §6 conformance suite in `test/conformance/`, with fixtures for a broken network and a cycle. Tests for checks 5 to 7: a peer cannot change the router, a peer receives only allowed `sly_data`, visible errors for every stop case. Vendor `check_partner.mjs` into `scripts/` so its tests always run. Stop e2e child servers when a check fails. Add a SIGTERM handler to `scripts/dev.ts`. Tell the person when a recipe is cut to 20 sites or 2,000 characters. | C9 |
+| C13b | Deploy the nine Vercel projects and Scout behind Caddy. Run the smoke checks and `check_partner` over HTTPS. Fill the live URLs in the README, `submission.md` and `demo-script.md`. | C12, owner OK for a production deploy from `main` |
+| C15 | Finish the submission text after C12 and C13b. Replace every `TODO(verify)`. | C12, C13b |
+| C16 | Record the video on the live URLs. The owner records it and posts it on YouTube. | C13b |
+| - | Make the repository public before the submission. | owner |
+| - | Submit on Devpost with the Otari account email. | owner |
+| - | Optional: an entry in the agentic-web showcase (`docs/agentic_websites.md`, by pull request). | owner OK |
 
 ## Known gaps
 
-- shortcut: no `frame-ancestors` CSP on the bridge page, because Bun HTML-import routes cannot set
-  headers. Upgrade: build the bridge with `Bun.build` and serve it with the header.
-- shortcut: the clickjacking guard is a 700 ms delay only. Upgrade: Intersection Observer v2
+- shortcut: the clickjacking guard is the 700 ms Approve delay only. Upgrade: Intersection Observer v2
   (`trackVisibility`) where available.
-- shortcut: no sign-in. Demo sites keep state in memory and trust their own bridge.
-- shortcut: Mosaic does not validate a capability's output against `output_schema`.
-- The e2e test needs `CHROMIUM_PATH` on this machine, because the cached Chromium revision (1254)
-  differs from the one that `playwright-core` expects (1255).
+- shortcut: no sign-in. Demo sites keep state in memory and reset on a cold start. Real sites need
+  sign-in inside the bridge window (popup sign-in or the Storage Access API).
+- shortcut: Scout drives each site with no cookies, so it cannot act inside a person's account. That
+  needs a per-person browser profile.
+- The Otari default needs the visitor's key. A keyless default would make the host pay, so keyless runs
+  manual mode.
+- The per-turn budget override uses a private runtime method (`Engine._makeCtx`). A test fails if the
+  pinned runtime changes it.
+- The e2e test needs `CHROMIUM_PATH` on this machine, because the cached Chromium revision differs from
+  the one that `playwright-core` expects.
