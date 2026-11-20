@@ -1,0 +1,74 @@
+# Caddy in front of a public Scout (agent/scout.ts). Automatic HTTPS: Caddy gets a Let's Encrypt
+# certificate for each hostname below. SCOUT_DOMAIN is a name that resolves to this server, for
+# example 203-0-113-10.sslip.io (sslip.io answers with the IP written in the name). Run Caddy with
+# SCOUT_DOMAIN in its environment (systemd: Environment=SCOUT_DOMAIN=...).
+#
+# Scout listens on 4108 and serves learned adapters on 4110-4129 (SCOUT_ADAPTER_PORT_BASE=4110,
+# SCOUT_MAX_ADAPTERS=20). With SCOUT_ADAPTER_ORIGIN=https://scout-{port}.<SCOUT_DOMAIN>, each adapter
+# gets the hostname below that names its port. Keep 4108-4129 closed in the firewall; only 80 and
+# 443 face the internet. Matching Scout settings: deploy/scout.env.example.
+
+scout.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4108
+}
+
+scout-4110.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4110
+}
+scout-4111.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4111
+}
+scout-4112.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4112
+}
+scout-4113.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4113
+}
+scout-4114.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4114
+}
+scout-4115.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4115
+}
+scout-4116.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4116
+}
+scout-4117.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4117
+}
+scout-4118.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4118
+}
+scout-4119.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4119
+}
+scout-4120.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4120
+}
+scout-4121.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4121
+}
+scout-4122.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4122
+}
+scout-4123.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4123
+}
+scout-4124.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4124
+}
+scout-4125.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4125
+}
+scout-4126.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4126
+}
+scout-4127.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4127
+}
+scout-4128.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4128
+}
+scout-4129.{$SCOUT_DOMAIN} {
+	reverse_proxy 127.0.0.1:4129
+}

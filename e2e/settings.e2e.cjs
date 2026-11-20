@@ -75,7 +75,8 @@ async function settingsChecks({ browser, procs, base, sitePort, screenshot }) {
     const context = await browser.newContext({ deviceScaleFactor: 1, viewport: { width: 1280, height: 860 } });
     const page = await context.newPage();
     const requests = [];
-    page.on("request", (req) => requests.push(req.allHeaders().then((headers) => ({ url: req.url(), headers }))));
+    // A request can still be in flight when the context closes; its headers are then unreadable.
+    page.on("request", (req) => requests.push(req.allHeaders().then((headers) => ({ url: req.url(), headers }), () => null)));
     await page.goto(host);
 
     // 12. With no key, Mosaic says it plans without a model.
@@ -114,7 +115,7 @@ async function settingsChecks({ browser, procs, base, sitePort, screenshot }) {
     await assertKeyHidden(page, KEY, "after delete");
 
     // 16. No request from the page, to any origin, carried the key except Authorization at the router.
-    const all = await Promise.all(requests);
+    const all = (await Promise.all(requests)).filter(Boolean);
     for (const { url, headers } of all) {
       for (const [name, value] of Object.entries(headers)) {
         if (!value.includes(KEY) && !value.includes(KEY2)) continue;
