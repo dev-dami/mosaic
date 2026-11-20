@@ -43,7 +43,19 @@ export const issuesSite: SiteDefinition = {
       description: `List the open issues on ${REPO}, newest first.`,
       side_effects: "read",
       input_schema: { type: "object", properties: {} },
-      output_schema: { type: "object", properties: { repository: { type: "string" }, open: { type: "array" } } },
+      output_schema: {
+        type: "object",
+        properties: {
+          repository: { type: "string" },
+          open: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { number: { type: "string" }, title: { type: "string" }, label: { type: "string" }, milestone: { type: "string" }, opened: { type: "string" } },
+            },
+          },
+        },
+      },
       run: () => ({
         repository: REPO,
         open: issues.map((i) => ({ number: `#${i.number}`, title: i.title, label: i.label, milestone: i.milestone, opened: i.opened })),

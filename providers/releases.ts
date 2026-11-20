@@ -19,7 +19,15 @@ export const releasesSite: SiteDefinition = {
       description: "List the published releases, newest first.",
       side_effects: "read",
       input_schema: { type: "object", properties: {} },
-      output_schema: { type: "object", properties: { releases: { type: "array" } } },
+      output_schema: {
+        type: "object",
+        properties: {
+          releases: {
+            type: "array",
+            items: { type: "object", properties: { version: { type: "string" }, notes: { type: "string" }, published_at: { type: "string" } } },
+          },
+        },
+      },
       run: () => ({ releases }),
     },
     {

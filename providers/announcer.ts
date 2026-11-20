@@ -47,7 +47,7 @@ export const announcerSite: SiteDefinition = {
         required: ["text"],
         properties: {
           text: { type: "string", title: "Post", "x-mosaic-widget": "textarea" },
-          post_at: { type: "string", format: "date-time", title: "Post at", description: "Leave empty to post now." },
+          post_at: { type: "string", title: "Post at", description: "An ISO 8601 date and time, such as 2026-12-01T09:00:00Z. Leave empty to post now." },
         },
       },
       output_schema: {
