@@ -1,4 +1,5 @@
 import { OTARI_ROUTER } from "./agentic/network";
+import { LINK_ORIGINS } from "./agentic/routers";
 
 export type HostCspInput = {
   /** The demo sites' origins (SITE_ORIGINS and MOSAIC_SUGGEST). */
@@ -21,7 +22,8 @@ const originOf = (url: string) => {
  * The deployed host page's Content-Security-Policy. Scripts come from the host only: that is the
  * boundary. Frames and fetches may reach any https origin, because a person can connect a site
  * Mosaic has never seen and choose their own model router; the consent dialog gates every new
- * origin before contact (spec §5). Listed origins stay for http sites in local runs. Workers are
+ * origin before contact (spec §5). Listed origins stay for http sites in local runs. Fetches may
+ * also reach Mosaic Link on loopback, which refuses any call without its pairing token. Workers are
  * the runtime's own sandbox worker.
  */
 export function hostCsp({ siteOrigins, agent, extra = [] }: HostCspInput): string {
@@ -33,7 +35,7 @@ export function hostCsp({ siteOrigins, agent, extra = [] }: HostCspInput): strin
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https:",
     "font-src 'self' data:",
-    `connect-src ${reach} https:`,
+    `connect-src ${reach} ${LINK_ORIGINS.join(" ")} https:`,
     `frame-src ${reach} https:`,
     "object-src 'none'",
     "base-uri 'none'",

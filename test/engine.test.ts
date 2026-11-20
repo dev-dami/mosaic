@@ -2,6 +2,7 @@
 // fetch that serves Mosaic's own published documents and one peer site.
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 import { resolve } from "node:path";
+import { ClaudeLlmClient } from "../src/host/agentic/claude-client";
 import { buildHostNetwork, COMPOSER_AGENT, DEFAULT_MODEL, OTARI_ROUTER } from "../src/host/agentic/network";
 import {
   engineOptions,
@@ -99,6 +100,29 @@ describe("remote-call budget (R1)", () => {
   test("a runtime without _makeCtx is refused", () => {
     class NoCtx {}
     expect(() => makeMosaicEngineClass(NoCtx as unknown as RuntimeModule["Engine"])).toThrow("_makeCtx");
+  });
+});
+
+describe("model client per router (C18)", () => {
+  test("the Anthropic router gets the Claude client; other routers keep the runtime's", async () => {
+    const rt = (await import(RUNTIME)) as RuntimeModule;
+    const Mosaic = makeMosaicEngineClass(rt.Engine);
+    const claude = new Mosaic({ originUrl: HOST, byokKey: "sk-test", routerOverride: "https://api.anthropic.com", modelOverride: "claude-opus-5-5" });
+    await claude.loadTop();
+    const top = (claude as unknown as { top: { llm: unknown } }).top;
+    expect(top.llm).toBeInstanceOf(ClaudeLlmClient);
+    const openai = new Mosaic({ originUrl: HOST, byokKey: "sk-test", routerOverride: "https://api.openai.com/v1", modelOverride: "gpt-5" });
+    await openai.loadTop();
+    const llm = (openai as unknown as { top: { llm: { baseUrl: string } } }).top.llm;
+    expect(llm).not.toBeInstanceOf(ClaudeLlmClient);
+    expect(llm.baseUrl).toBe("https://api.openai.com/v1");
+  });
+
+  test("a runtime without _compile is refused", () => {
+    class CtxOnly {
+      _makeCtx() {}
+    }
+    expect(() => makeMosaicEngineClass(CtxOnly as unknown as RuntimeModule["Engine"])).toThrow("_compile");
   });
 });
 

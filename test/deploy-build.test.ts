@@ -26,6 +26,13 @@ describe("host content security policy", () => {
       expect(d.split(" ")).not.toContain("http:");
     }
   });
+
+  test("fetches may reach Mosaic Link on loopback port 4199 only; frames may not", () => {
+    for (const o of ["http://127.0.0.1:4199", "http://localhost:4199"]) {
+      expect(directive("connect-src").split(" ")).toContain(o);
+      expect(directive("frame-src")).not.toContain(o);
+    }
+  });
 });
 
 describe("deploy build", () => {

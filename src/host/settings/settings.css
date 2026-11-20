@@ -42,3 +42,4 @@
 @media (max-width: 640px) {
   .settings { top: auto; bottom: 0; width: 100vw; max-height: 90vh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; border-bottom: 0; }
 }
+.settings-presets { display: flex; gap: 6px; flex-wrap: wrap; }
