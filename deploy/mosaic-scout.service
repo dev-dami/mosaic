@@ -1,0 +1,31 @@
+# systemd unit for a public Scout (agent/scout.ts) behind deploy/Caddyfile. Steps: docs/deploy.md.
+# Install: cp deploy/mosaic-scout.service /etc/systemd/system/ && systemctl daemon-reload &&
+# systemctl enable --now mosaic-scout
+# Assumes: the repo checked out at /opt/mosaic (bun install done), Bun at /usr/local/bin/bun, a
+# "scout" system user whose Chromium is at the CHROMIUM_PATH in /etc/mosaic/scout.env (copied from
+# deploy/scout.env.example and filled in). Scout listens on 127.0.0.1-reachable ports 4108-4129;
+# only Caddy (80/443) faces the internet.
+
+[Unit]
+Description=Mosaic Scout (learns sites with no manifest)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=scout
+Group=scout
+WorkingDirectory=/opt/mosaic
+EnvironmentFile=/etc/mosaic/scout.env
+ExecStart=/usr/local/bin/bun agent/scout.ts
+Restart=on-failure
+RestartSec=5
+# Templates persist in SCOUT_DIR (scout.env.example: /var/lib/scout).
+StateDirectory=scout
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
