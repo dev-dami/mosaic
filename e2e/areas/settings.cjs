@@ -3,7 +3,7 @@
 module.exports = {
   /** Open the AI model panel from the top bar and return it. */
   async open(page) {
-    await page.getByRole("button", { name: "AI model" }).click();
+    await page.getByRole("button", { name: "AI model", exact: true }).click();
     const panel = page.getByRole("dialog", { name: "AI model" });
     await panel.waitFor();
     return panel;
