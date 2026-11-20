@@ -241,7 +241,9 @@ async function main() {
   //        turn runs on a local mock router (e2e/settings.e2e.cjs).
   await context.close();
   await require("./settings.e2e.cjs").settingsChecks({ browser, procs, base: BASE, sitePort: SITES.releases, screenshot: process.env.SETTINGS_SCREENSHOT });
-  console.log("e2e: all 21 checks passed");
+  // 19-22. Recipes: copy a two-site workspace as a link and rebuild it in a fresh context (e2e/recipe.e2e.cjs).
+  await require("./recipe.e2e.cjs").recipeChecks({ browser, procs, base: BASE });
+  console.log("e2e: all 25 checks passed");
 }
 
 main()

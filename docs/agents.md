@@ -97,10 +97,36 @@ again when it starts, on the same ports.
 
 ## Recipes: composable everywhere
 
-**Copy recipe link** in the palette puts the workspace into one link: the outcome and the sites, in
-order. A site that Scout learned also carries its template. Opening the link on another Mosaic sets
-the outcome, imports the templates into that Mosaic's Scout, and connects each site. Each connection
-runs the usual checks. A recipe grants nothing: no inputs, results or approvals travel with it.
+**Copy recipe link** in the palette puts the workspace into one link (`<mosaic>/#recipe=<base64url>`):
+
+```json
+{ "mosaic": "recipe/1", "outcome": "Launch Lumen v1.0",
+  "networks": ["https://docs.example/pagewright", "https://scout.example:4120/forum"],
+  "adapters": { "https://scout.example:4120/forum": { "mosaic": "adapter/0", "...": "..." } } }
+```
+
+- `networks` are the connected sites' network URLs (`<origin>/<network>`), in order.
+- `adapters` is only there for sites this Mosaic's Scout serves: Scout's template for that site.
+
+Opening the link on any Mosaic sets the outcome, then works through `networks` in order:
+
+1. A site with a template is imported into this Mosaic's Scout (`POST /templates`). Scout serves it on
+   its own origin, and that origin's network URL is connected instead. If Scout refuses the template
+   (for example, the target is outside `SCOUT_TARGETS`), or this Mosaic has no Scout, the site is
+   skipped and the reason is shown.
+2. Every other site is connected by its network URL.
+
+Each connection asks for consent for its origin and runs the usual checks. A recipe grants nothing.
+The link never holds a key, router URL, model, profile, input values, results or approvals.
+
+Links are checked strictly before anything happens:
+
+- At most 64 KB decoded and 20 networks.
+- http or https network URLs only, with no credentials, query or fragment, and one network name each.
+- Each origin at most once. No unknown fields.
+
+A bad link gets a plain message and connects nothing. Old `recipe/0` links (they named
+capabilities/0 origins, now retired) are refused with a request for a new link.
 
 So the same unit moves at every level:
 
@@ -108,7 +134,7 @@ So the same unit moves at every level:
 |---|---|---|
 | Site agent | `agent-manifest.json`, network, `links.json`, action bridge (MVP profile 0.3) | The site, or Scout for a site that publishes nothing |
 | Template | `mosaic-adapter/0` (skills plus steps), Scout's private save format | Scout |
-| Recipe | `recipe/0` link (outcome, sites, templates) | The person, from any workspace |
+| Recipe | `recipe/1` link (outcome, network URLs, Scout templates) | The person, from any workspace |
 
 ## Scout vs nsdeploy native form discovery
 
