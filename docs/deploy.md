@@ -51,14 +51,14 @@ per-deployment URL, which Deployment Protection hides behind a Vercel login.
 | `SITE_ORIGINS` | recommended | - | - | `slug=origin` pairs, comma separated, of the sites the host's agent network links. Inkpost stays out on purpose. Also allowed by the host's CSP. |
 | `MOSAIC_SUGGEST` | recommended | - | - | Site URLs suggested on the empty page, comma separated. Inkpost stays out. Also allowed by the host's CSP. |
 | `MOSAIC_AGENT` | optional | - | - | Scout's origin. Unset: the "Teach Scout" offer never shows. Also allowed by the host's CSP. |
-| `MOSAIC_CSP_ORIGINS` | recommended | - | - | More origins the host page may frame and fetch, comma or space separated, wildcards allowed. Put Inkpost's origin here, and `https://*.<scout domain>` for Scout's learned sites. |
+| `MOSAIC_CSP_ORIGINS` | optional | - | - | More http origins the host page may frame and fetch in local runs (https origins are always allowed). |
 | `PORT` | local only | local only | local only | Ignored on Vercel. |
 
 The host page's Content-Security-Policy (src/host/csp.ts) allows scripts from the host only, and
-frames and fetches to: the host, `SITE_ORIGINS`, `MOSAIC_SUGGEST`, `MOSAIC_AGENT`,
-`MOSAIC_CSP_ORIGINS` and the default model router (`https://api.otari.ai`). A site URL typed into the
-palette that is not on that list cannot connect, and neither can a custom model router: add them to
-`MOSAIC_CSP_ORIGINS`. Bridge pages send `frame-ancestors <MOSAIC_HOSTS>` and no
+frames and fetches to any https origin, so a person can connect a site Mosaic has never seen and use
+their own model router. The consent dialog gates each new origin before contact. The listed origins
+(`SITE_ORIGINS`, `MOSAIC_SUGGEST`, `MOSAIC_AGENT`, `MOSAIC_CSP_ORIGINS`, `https://api.otari.ai`) stay
+in the policy for http sites in local runs. Bridge pages send `frame-ancestors <MOSAIC_HOSTS>` and no
 Cross-Origin-Opener-Policy, so the write popup keeps its opener. Only public agent files
 (agent-manifest.json, the network file, links.json) and `/runtime/*` send
 `Access-Control-Allow-Origin: *`.

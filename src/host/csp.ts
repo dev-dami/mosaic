@@ -18,9 +18,11 @@ const originOf = (url: string) => {
 };
 
 /**
- * The deployed host page's Content-Security-Policy. Scripts come from the host only. The page
- * frames and fetches the sites (their bridges and published agent files), Scout and the default
- * model router, and nothing else. Workers are the runtime's own sandbox worker.
+ * The deployed host page's Content-Security-Policy. Scripts come from the host only: that is the
+ * boundary. Frames and fetches may reach any https origin, because a person can connect a site
+ * Mosaic has never seen and choose their own model router; the consent dialog gates every new
+ * origin before contact (spec §5). Listed origins stay for http sites in local runs. Workers are
+ * the runtime's own sandbox worker.
  */
 export function hostCsp({ siteOrigins, agent, extra = [] }: HostCspInput): string {
   const reach = [...new Set(["'self'", ...siteOrigins.map(originOf), ...(agent ? [originOf(agent)] : []), ...extra, new URL(OTARI_ROUTER).origin])].join(" ");
@@ -31,8 +33,8 @@ export function hostCsp({ siteOrigins, agent, extra = [] }: HostCspInput): strin
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https:",
     "font-src 'self' data:",
-    `connect-src ${reach}`,
-    `frame-src ${reach}`,
+    `connect-src ${reach} https:`,
+    `frame-src ${reach} https:`,
     "object-src 'none'",
     "base-uri 'none'",
     "frame-ancestors 'none'",

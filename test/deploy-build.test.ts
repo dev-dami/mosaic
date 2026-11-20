@@ -16,12 +16,14 @@ describe("host content security policy", () => {
     expect(directive("script-src")).toBe("script-src 'self'");
   });
 
-  test("frames and fetches reach the site origins, the agent and the model router only", () => {
+  test("frames and fetches reach the listed origins and any https origin, never http wildcards", () => {
     for (const name of ["frame-src", "connect-src"]) {
       const d = directive(name);
       for (const o of ["'self'", "https://docs.example", "https://releases.example", "https://scout.example", "https://*.scout.example", "https://api.otari.ai"]) expect(d).toContain(o);
       expect(d).not.toContain("*.example ");
       expect(d.split(" ")).not.toContain("*");
+      expect(d.split(" ")).toContain("https:");
+      expect(d.split(" ")).not.toContain("http:");
     }
   });
 });
