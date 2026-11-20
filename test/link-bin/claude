@@ -1,0 +1,20 @@
+#!/usr/bin/env bun
+// Fake `claude` for test/link.test.ts. FAKE_MODE picks the answer; FAKE_RECORD gets argv and stdin.
+import { writeFileSync } from "node:fs";
+const stdin = await new Response(Bun.stdin.stream()).text();
+if (process.env.FAKE_RECORD) writeFileSync(process.env.FAKE_RECORD, JSON.stringify({ argv: process.argv.slice(2), stdin, cwd: process.cwd() }));
+const mode = process.env.FAKE_MODE || "text";
+if (mode === "sleep") {
+  writeFileSync(process.env.FAKE_PID, String(process.pid));
+  await Bun.sleep(60_000);
+}
+const out = {
+  text: { type: "result", is_error: false, structured_output: { text: "hello from fake claude", tool_calls: [] } },
+  tools: { type: "result", is_error: false, structured_output: { text: "", tool_calls: [
+    { name: "lookup", arguments: "{\"q\":\"tea\"}" },
+    { name: "invented_tool", arguments: "{}" },
+    { name: "website_add", arguments: "{\"item\":\"cup\"}" },
+  ] } },
+  error: { type: "result", is_error: true, result: "not logged in" },
+}[mode];
+process.stdout.write(JSON.stringify(out));
