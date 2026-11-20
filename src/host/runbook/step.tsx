@@ -78,12 +78,6 @@ export function Step({ origin, number }: { origin: string; number: number }) {
       </header>
       {lead && <p className="step-desc">{lead.cap.description}</p>}
 
-      {conn.status === "failed" && (
-        <Banner tone="danger" icon={<WarningIcon />} className="step-banner">
-          {name} refused Mosaic: {conn.failure}
-        </Banner>
-      )}
-
       {/* Context reads show in the site chip's details; each keeps its one element here. */}
       {context.map((r) => (
         <span key={r.key} hidden className="cap cap--context" data-capability={r.cap.id} data-origin={r.origin} id={capAnchor(r.key)} />

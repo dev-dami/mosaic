@@ -5,7 +5,7 @@
 **What if the web could build the app you need, instead of making you navigate the apps it has?**
 
 Mosaic is a browser workspace that is assembled at runtime from the capabilities that websites publish.
-You connect a site by its URL. Mosaic reads the site's capability manifest and turns each capability into
+You connect a site by its URL. Mosaic loads the agent network the site publishes (Open Agentic Web MVP 0.3) and turns each action into
 working controls. Reads run at once. Writes run only after you approve them on a prompt that the site
 itself shows, not Mosaic.
 
@@ -49,7 +49,7 @@ in [docs/demo-script.md](docs/demo-script.md).
 
 ```sh
 bun run typecheck
-bun run test       # unit tests: form compiler, manifest parsing, site API guard, Scout (needs Chromium)
+bun run test       # unit tests: form compiler, registry mapping, site API guard, Scout (needs Chromium)
 bun run e2e        # browser test of the whole flow (set CHROMIUM_PATH if needed, E2E_PORT_BASE to move ports)
 ```
 
@@ -94,24 +94,24 @@ Mosaic matches fields by name and shape only. Nothing in `src/` knows the demo s
 ```
  Mosaic page (origin A)                          Site (origin B)
  ─────────────────────                           ───────────────
- 1. GET B/.well-known/mosaic-capabilities.json ─▶ manifest (public, CORS *)
- 2. compile each input_schema into a form
- 3. embed hidden iframe B/mosaic/bridge ────────▶ bridge page, runs on origin B
- 4. postMessage {invoke, capability, input} ────▶ checks sender origin against its allow list
-                                                  write? shows its own Approve / Deny prompt
+ 0. you allow contacting B (consent, before any request)
+ 1. GET B/agent-manifest.json ─────────────────▶ MVP 0.3 manifest (public, CORS *)
+ 2. load network B/<name> by its exact name ───▶ fails closed on any other name
+ 3. hidden iframe B/bridge/action-bridge.html ─▶ lists actions for callers it allows
+ 4. read: run in the iframe; write: a window on origin B, where the site's own sheet asks
                                                   POST B/api/capabilities/:id (same origin)
- 5. ◀──────────────────────────── postMessage {result}
+ 5. ◀──────────────────────────── receipt (succeeded / unknown / not started)
 ```
 
 The parts:
 
 | Path | What it is |
 |---|---|
-| `spec/capabilities-v0.schema.json` | The manifest format. Capability fields follow the WebAgentica tool declaration where they overlap. |
-| `src/protocol.ts` | Manifest parsing (bound to the origin that served it) and the bridge message types. |
+| `src/protocol.ts` | The Capability authoring type sites and Scout describe actions with. |
+| `src/host/agentic/` | The nsdeploy runtime wrapper (`engine.ts`), Mosaic's own network, and the registry-to-runbook mapping (`catalog.ts`). |
 | `src/form.ts` | The capability-to-UI compiler: JSON Schema to form fields, and form values back to typed input. |
 | `src/host/` | The Mosaic workspace (React) and the host end of the bridge. A thin shell (`app.tsx`) mounts three areas, `runbook/`, `entry/` and `review/`, over one store (`state/`) and shared primitives (`primitives/`). See [docs/design.md](docs/design.md). |
-| `providers/site.ts`, `providers/bridge.ts` | A small kit that makes any site Mosaic-compatible: manifest, bridge page, guarded API. |
+| `providers/site.ts`, `providers/agentic.ts`, `providers/bridge-actions.ts` | A small kit that publishes any site under MVP Profile 0.3: manifest, network, action bridge, guarded API. |
 | `providers/{docs,releases,announcer,newsletter,videos,issues,agents}.ts` | Seven fictional demo sites (see the table under "Run it"). |
 | `src/host/doc.ts` | Runbook logic: markdown and diff models, the outcome sentence, field bindings. |
 | `agent/` | Scout: observe a site (`observe.ts`), learn skills by rules or with Claude (`learn-*.ts`), run step scripts (`skill.ts`), serve templates (`scout.ts`). |
@@ -120,8 +120,8 @@ The parts:
 
 ### Security rules in the spike
 
-- A manifest must name the origin that served it, and its bridge must be on that origin.
-- The host accepts a bridge message only from that site's iframe window and origin.
+- Mosaic runs only the exact network named in the URL, after you consent; a site's actions load only from its own origin.
+- Writes run only in a window on the site's origin; the runtime's action bridge refuses them anywhere else.
 - The bridge accepts requests only from host origins that the site allows (`MOSAIC_HOSTS`).
 - The site API accepts calls only from its own origin, so a host page cannot call it directly.
 - Every write needs approval on the site's own prompt. The Approve button stays disabled for 700 ms

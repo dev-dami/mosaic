@@ -17,7 +17,16 @@ import { Toasts } from "./toasts";
 import { closeReview, openReview, toggleReview, useReviewUi } from "./ui";
 
 const EASE: [number, number, number, number] = [0, 0.5, 0.5, 1];
-const STATE_WORD: Record<WriteStatus, string> = { idle: "not sent yet", running: "sending", waiting: "waiting for your answer", done: "published", denied: "denied", failed: "failed" };
+const STATE_WORD: Record<WriteStatus, string> = {
+  idle: "not sent yet",
+  running: "sending",
+  waiting: "waiting for your answer",
+  done: "published",
+  denied: "denied",
+  failed: "failed",
+  unknown: "outcome unknown",
+  not_started: "not started",
+};
 
 export function ReviewDock() {
   return (
@@ -116,8 +125,8 @@ function Dock() {
   }, [side]);
 
   // ⌘↵ / Ctrl↵ opens or closes the dock, unless focus is in a field; Esc closes it (unless a site's sheet is up: that is the site's).
-  const latest = useRef({ has, open, confirming: state.confirming });
-  latest.current = { has, open, confirming: state.confirming };
+  const latest = useRef({ has, open, confirming: state.confirming ?? state.asking });
+  latest.current = { has, open, confirming: state.confirming ?? state.asking };
   useEffect(
     () =>
       tinykeys(window, {
@@ -190,22 +199,30 @@ function Dock() {
   if (!has) return null;
 
   const nameOf = (origin: string) => model.connFor(origin)?.site.site.name ?? origin;
-  const waiting = state.confirming ? model.connFor(state.confirming) : undefined;
+  const busyOrigin = state.confirming ?? state.asking;
+  const waiting = busyOrigin ? model.connFor(busyOrigin) : undefined;
   const denied = pending.find((w) => writeStatus(state, w) === "denied");
+  const unknown = pending.find((w) => writeStatus(state, w) === "unknown");
   const allDone = pending.length === 0 && planned.length > 0;
   const sendReason = state.sending
     ? "Sending now, one site at a time"
     : pending.length === 0
       ? "Everything here is published"
-      : state.confirming
-        ? `Answer ${nameOf(state.confirming)}'s prompt first`
-        : pending.some((w) => !model.readyOf(w.origin))
-          ? "A site is still starting its bridge"
-          : null;
+      : busyOrigin
+        ? `Answer ${nameOf(busyOrigin)}'s prompt first`
+        : state.writing
+          ? "A change is still being sent"
+        : pending.every((w) => writeStatus(state, w) === "unknown")
+          ? `Nothing left to send. Check ${unknown?.siteName ?? "the site"} for the change with an unknown outcome`
+          : pending.some((w) => !model.readyOf(w.origin))
+            ? "A site is still starting its bridge"
+            : null;
   // One line says how many; a second appears only when it has news.
   const news = waiting
     ? `Waiting for your answer on ${waiting.site.site.name}`
-    : denied
+    : unknown
+      ? `Outcome unknown on ${unknown.siteName}. Check it there; Mosaic won't send it again.`
+      : denied
       ? `Denied on ${denied.siteName}. Nothing changed there.`
       : allDone
         ? "Each one is in Activity, below the steps."

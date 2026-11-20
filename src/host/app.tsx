@@ -11,7 +11,7 @@ import { EntryEmpty, EntryOverlays, EntryTopbar, OutcomeHeader, SourcesRail } fr
 import { ActivityLog, ApprovalLayer, ReviewDock } from "./review";
 import { RunbookDocument } from "./runbook";
 import { applyRecipe, recipeFromHash } from "./recipe";
-import { MosaicProvider, useMosaic } from "./state";
+import { AgentLink, MosaicProvider, useMosaic } from "./state";
 import { AgentEngineProvider, ModelSettingsButton } from "./settings";
 
 function App() {
@@ -34,6 +34,7 @@ function App() {
             <ApprovalLayer />
             <EntryOverlays />
             <RecipeLoader />
+            <AgentLink />
           </div>
           </AgentEngineProvider>
         </TooltipProvider>

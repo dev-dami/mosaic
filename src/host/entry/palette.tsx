@@ -10,7 +10,7 @@ import { Command } from "cmdk";
 import { MotionConfig, motion } from "motion/react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { tinykeys } from "tinykeys";
-import { MANIFEST_PATH } from "../../protocol";
+import { connectTarget } from "../agentic/catalog";
 import { learnerName, scout, type Template } from "../agent";
 import { recipeLink } from "../recipe";
 import { capAnchor, hostOf, monogram, type CapRef } from "../doc";
@@ -19,6 +19,12 @@ import { openReview } from "../review";
 import { useMosaic, type Trace } from "../state";
 import { checkRows, Checklist, isDone, refusalOf } from "./trace";
 import { asOrigin, entryUi, useEntryUi } from "./ui";
+
+/** A typed site address with its network name kept (`<origin>/<network>`), or the bare origin. */
+function asTarget(text: string): string | null {
+  const t = connectTarget(text);
+  return t ? (t.network ? `${t.origin}/${encodeURIComponent(t.network)}` : t.origin) : null;
+}
 
 /** Scroll a capability's block into view and light it up for a moment. */
 export function jumpTo(key: string, setHot: (k: string | null) => void) {
@@ -53,17 +59,18 @@ export function Palette() {
     [open],
   );
 
-  const connect = (origin: string) => {
+  /** `target` is an origin or `<origin>/<network>`; the workspace keys a connection by its origin. */
+  const connect = (target: string) => {
+    const origin = connectTarget(target)?.origin ?? target;
     const existing = model.connFor(origin);
-    if (existing && existing.status !== "failed") {
+    if (existing) {
       const first = model.refs.find((r) => r.origin === origin);
       entryUi.closePalette();
       if (first) jumpTo(first.key, actions.setHot);
       return;
     }
-    if (existing) actions.disconnect(origin);
     setWatching(origin);
-    void actions.connect(origin);
+    void actions.connect(target);
   };
 
   const traceRef = useRef(state.trace);
@@ -75,13 +82,13 @@ export function Palette() {
     if (!open) return;
     setQuery(seed);
     const t = getTrace();
-    const origin = asOrigin(seed);
+    const origin = asTarget(seed);
     if (autoConnect && origin) connect(origin);
     else setWatching(t && !refusalOf(t) && !isDone(t) ? t.origin : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const urlOrigin = asOrigin(query);
+  const urlOrigin = asTarget(query);
   const trace = watching && state.trace?.origin === watching ? state.trace : null;
   const pendingSuggestions = (state.host?.suggestions ?? []).map((s) => asOrigin(s)).filter((o): o is string => !!o && !model.connFor(o));
   const templates = useTemplates(open ? state.host?.agent : undefined);
@@ -290,7 +297,7 @@ function rank(value: string, search: string, keywords: string[] = []): number {
 
 /** A "Connect <host>" row: a dashed socket waiting for the site. */
 function ConnectRow({ origin, suggested, template, onSelect }: { origin: string; suggested?: boolean; template?: Template; onSelect: () => void }) {
-  const host = template ? hostOf(template.target) : hostOf(origin);
+  const host = template ? hostOf(template.target) : hostOf(origin) + new URL(origin).pathname.replace(/^\/$/, "");
   return (
     <Command.Item value={`connect ${origin}`} keywords={[`connect ${host} ${template?.name ?? ""}`, "", "connect a site learned template agent", host]} onSelect={onSelect} className={`palette-item connect-row ${template ? "learned" : ""}`}>
       <span className="socket-mini" aria-hidden="true">
@@ -306,7 +313,7 @@ function ConnectRow({ origin, suggested, template, onSelect }: { origin: string;
             ? `${template.skills.length} skills Scout learned (${learnerName(template.learned_by)}). ${host} did not publish them.`
             : suggested
               ? "Suggested by this Mosaic"
-              : `Reads ${host}${MANIFEST_PATH}, then opens its bridge`}
+              : `Asks you, reads ${host}/agent-manifest.json, then its action bridge`}
         </span>
       </span>
       <Kbd keys={["enter"]} className="item-kbd" />
@@ -380,7 +387,16 @@ function ConnectView({ trace, onGo, onReset, onConnect }: { trace: Trace; onGo: 
           </div>
         </div>
       )}
-      {refusal?.stage === "fetch" && state.host?.agent && <TeachBox agent={state.host.agent} url={trace.origin} onLearned={onConnect} />}
+      {refusal?.stage === "network" && trace.choices?.length ? (
+        <div className="connect-actions" aria-label="Networks">
+          {trace.choices.map((n) => (
+            <Button key={n} variant="secondary" onClick={() => onConnect(`${trace.origin}/${n}`)}>
+              Connect {n}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+      {refusal?.stage === "manifest" && state.host?.agent && <TeachBox agent={state.host.agent} url={trace.origin} onLearned={onConnect} />}
       {done && conn && <Gain origin={trace.origin} />}
       <div className="connect-actions">
         {done && (

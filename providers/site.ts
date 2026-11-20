@@ -1,9 +1,8 @@
 import { readFileSync } from "node:fs";
 import Ajv from "ajv";
-import { MANIFEST_PATH, type Capability, type Manifest } from "../src/protocol";
+import type { Capability } from "../src/protocol";
 import { runtimeRoute } from "../src/runtime-files";
 import { AGENT_MANIFEST_PATH, agenticArtifacts, BRIDGE_MANIFEST_PATH, DEFAULT_LOOK, LINKS_PATH, networkPath } from "./agentic";
-import bridgePage from "./bridge.html"; // shortcut: removed in C7
 import { renderHome } from "./home";
 
 /** Thrown by a capability's run when the input passed the schema but the site still cannot use it. */
@@ -24,7 +23,8 @@ export type SiteDefinition = {
   capabilities: CapabilityImpl[];
 };
 
-export type AgentInfo = NonNullable<Manifest["site"]["agent"]>;
+/** Set on a site an agent performs on another site (Scout); published as the manifest's x_mosaic.agent. */
+export type AgentInfo = { name: string; drives: string; learned_by: string };
 
 export type BridgeConfig = {
   site: string;
@@ -35,8 +35,6 @@ export type BridgeConfig = {
 };
 
 export type Activity = { at: string; capability: string; input: unknown };
-
-const BRIDGE_PATH = "/mosaic/bridge"; // shortcut: removed in C7
 
 /** The nsdeploy action bridge (MVP 0.3): the skill's template page, this site's actions module and their config. */
 export const ACTION_BRIDGE_PATH = "/bridge/action-bridge.html";
@@ -62,13 +60,6 @@ export function createSite(def: SiteDefinition, origin: string, allowedHosts: st
   ajv.addFormat("date-time", (value: string) => !Number.isNaN(Date.parse(value)));
   const validators = new Map(def.capabilities.map((c) => [c.id, ajv.compile(c.input_schema)]));
   const activity: Activity[] = [];
-
-  const manifest: Manifest = {
-    mosaic: "capabilities/0",
-    site: { name: def.name, origin, description: def.description, theme_color: (def.look ?? DEFAULT_LOOK).accent, ...(def.agent ? { agent: def.agent } : {}) },
-    bridge: BRIDGE_PATH,
-    capabilities: def.capabilities.map(({ run: _run, ...capability }) => capability),
-  };
 
   const bridgeConfig: BridgeConfig = {
     site: def.name,
@@ -114,7 +105,7 @@ export function createSite(def: SiteDefinition, origin: string, allowedHosts: st
 
   const homePage = () => renderHome(def, def.look ?? DEFAULT_LOOK, activity);
 
-  return { manifest, bridgeConfig, agentic: agenticArtifacts(def), handleApi, homePage, activity };
+  return { bridgeConfig, agentic: agenticArtifacts(def), handleApi, homePage, activity };
 }
 
 export function serveSite(def: SiteDefinition, at: { port?: number; origin?: string } = {}) {
@@ -129,11 +120,6 @@ export function serveSite(def: SiteDefinition, at: { port?: number; origin?: str
     port,
     routes: {
       "/": () => site.homePage(),
-      // shortcut: removed in C7 (the capabilities/0 manifest and the bridge/0 page stay until the host moves)
-      [MANIFEST_PATH]: () =>
-        Response.json(site.manifest, { headers: { "access-control-allow-origin": "*" } }),
-      [BRIDGE_PATH]: bridgePage, // shortcut: removed in C7
-      "/mosaic/bridge-config": () => Response.json(site.bridgeConfig), // shortcut: removed in C7
       // The action bridge a caller's runtime frames (reads) or opens in a popup (writes). Only
       // Mosaic hosts may frame it; no COOP, so the popup keeps its opener.
       [ACTION_BRIDGE_PATH]: () =>

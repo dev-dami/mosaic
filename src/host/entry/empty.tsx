@@ -1,40 +1,36 @@
 // What the runbook shows before any site is connected: one block, one thing to do. A title, one
 // sentence, the chunky "Connect a site" button, and the suggested sites. The suggestions come from
-// this Mosaic's own configuration, so their public manifests are read ahead of time (checked like a
-// connection: bound to the origin that served them) to show each site's name and colour. The origin
+// this Mosaic's own configuration, but no site is contacted before the
+// person consents to connect it: a chip shows a name only if this browser connected the site before. The origin
 // is always shown beside the name.
 import { PlugIcon, PlusIcon, PlugsConnectedIcon } from "@phosphor-icons/react";
-import { useEffect, useState, type CSSProperties } from "react";
-import { discoverSite } from "../../protocol";
+import { useMemo, useState, type CSSProperties } from "react";
 import { monogram } from "../doc";
-import { hueOfColor, siteHue } from "../hue";
+import { siteHue } from "../hue";
 import { Button, EmptyFrame, Kbd, Origin } from "../primitives";
 import { useMosaic } from "../state";
-import { asOrigin, entryUi, knownName, rememberName } from "./ui";
+import { asOrigin, entryUi, knownName } from "./ui";
 
 type Preview = { name: string; hue: number };
 
-/** Names and colours of the suggested sites, read from their manifests. Missing until each answers. */
+/**
+ * Names and colours of the suggested sites, without contacting them: nothing goes to a site before
+ * the person consents to connect it. The name is the one this browser saw on an earlier connection
+ * (if any); the colour is the host's hue for the origin.
+ */
 function useSuggestionPreviews(origins: string[]): Record<string, Preview> {
-  const [previews, setPreviews] = useState<Record<string, Preview>>({});
-  const key = origins.join(",");
-  useEffect(() => {
-    const ctl = new AbortController();
+  return useMemo(() => {
     const taken: number[] = [];
-    (async () => {
-      for (const o of origins) {
-        try {
-          const site = await discoverSite(o, AbortSignal.any([ctl.signal, AbortSignal.timeout(5_000)]));
-          rememberName(o, site.site.name);
-          const hue = siteHue(o, taken, hueOfColor(site.site.theme_color));
-          taken.push(hue);
-          setPreviews((p) => ({ ...p, [o]: { name: site.site.name, hue } }));
-        } catch {}
-      }
-    })();
-    return () => ctl.abort();
-  }, [key]);
-  return previews;
+    const out: Record<string, Preview> = {};
+    for (const o of origins) {
+      const name = knownName(o);
+      if (!name) continue;
+      const hue = siteHue(o, taken);
+      taken.push(hue);
+      out[o] = { name, hue };
+    }
+    return out;
+  }, [origins.join(",")]);
 }
 
 export function EntryEmpty() {
@@ -90,7 +86,7 @@ export function EntryEmpty() {
           </>
         }
       >
-        <p>Paste a site's URL. Mosaic reads the capabilities it publishes and turns them into steps here; nothing about the site is built into Mosaic.</p>
+        <p>Paste a site's URL. Mosaic loads the agent network it publishes and turns its actions into steps here; nothing about the site is built into Mosaic.</p>
       </EmptyFrame>
     </section>
   );

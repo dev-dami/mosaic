@@ -3,6 +3,7 @@
 // remote-call budget, hides unbound link slots from the front agent, binds sites only by exact name,
 // and turns the runtime's trace into a typed stream. The model setup comes from the person's BYOK
 // profile; with no key Mosaic runs in manual mode and makes no model call at all.
+import type { ActionRegistry } from "./catalog";
 import { COMPOSER_AGENT, OTARI_ROUTER, SPARE_SLOTS } from "./network";
 
 export const RUNTIME_ENGINE_URL = "/runtime/engine.js";
@@ -71,6 +72,10 @@ export interface RuntimeEngine {
   trace: RuntimeTrace;
   history: unknown[];
   runtimeAllowedPeers: Set<string>;
+  /** The runtime's cache of resolved peer networks (remote.js RemoteRegistry). */
+  registry: { cache: Map<string, unknown> };
+  /** The runtime's action registry: every connected site's bridge actions (agentic/catalog.ts). */
+  actions: ActionRegistry;
   onConsent: ((info: ConsentRequest) => Promise<ConsentDecision>) | null;
   onLinkRequired: ((info: { reference: string }) => Promise<string | null>) | null;
   loadTop(): Promise<{ network: RuntimeNetwork; validation: { errors: string[] } }>;
@@ -257,7 +262,7 @@ export class MosaicAgent {
    * fetch) → bind a slot (the site's own suggested slot, else a spare) → allow the origin → resolve
    * the exact name, which fails closed with "No published network named …". Undone on failure.
    */
-  async connectNetwork(rawUrl: string): Promise<BoundNetwork> {
+  async connectNetwork(rawUrl: string, opts: { consented?: boolean } = {}): Promise<BoundNetwork> {
     let parsed: URL;
     try {
       parsed = new URL(rawUrl.trim());
@@ -274,7 +279,8 @@ export class MosaicAgent {
     const existing = Object.entries(net.links).find(([, target]) => target === url);
     if (existing) return this.connected.find((b) => b.url === url) ?? { slot: existing[0], network: name, origin, url };
 
-    const decision = await this.engine.requestConsent({ kind: "connect", peerOrigin: parsed.host, peerLabel: name, requestText: `Connect ${name} at ${parsed.host}` });
+    // `consented`: the caller already asked, before its own first fetch (the connect palette does).
+    const decision = opts.consented ? "allow" : await this.engine.requestConsent({ kind: "connect", peerOrigin: parsed.host, peerLabel: name, requestText: `Connect ${name} at ${parsed.host}` });
     if (decision === "decline") throw new Error(`You declined to connect ${parsed.host}. Nothing was sent to it.`);
 
     const free = (ref: string) => net.linkSlots.has(ref) && !net.getLink(ref);
@@ -297,6 +303,30 @@ export class MosaicAgent {
     } finally {
       this.prune();
     }
+  }
+
+  /**
+   * Undoes connectNetwork for `<origin>/<name>`: clears the link slot (so the front agent no longer
+   * sees it and a spare slot frees up), stops allowing the origin unless another link still uses it,
+   * forgets the resolved network, and drops its actions from the registry. A site the host's own
+   * manifest allows stays allowed there; with no slot bound the model still cannot reach it.
+   */
+  disconnectNetwork(rawUrl: string): void {
+    const url = rawUrl.replace(/\/+$/, "");
+    const cut = url.lastIndexOf("/");
+    const origin = url.slice(0, cut);
+    const name = url.slice(cut + 1);
+    const net = this.network;
+    for (const [slot, target] of Object.entries(net.links)) if (target === url) delete net.links[slot];
+    const at = this.connected.findIndex((b) => b.url === url);
+    if (at >= 0) this.connected.splice(at, 1);
+    if (!Object.values(net.links).some((t) => t.startsWith(`${origin}/`))) this.engine.runtimeAllowedPeers.delete(origin);
+    this.engine.registry.cache.delete(`${origin}::${name}`);
+    const actions = this.engine.actions as unknown as { entries: Map<string, { base: string; network: string }>; remoteLoads?: Map<string, unknown> };
+    for (const [ref, entry] of actions.entries) if (entry.base.replace(/\/+$/, "") === origin && entry.network === name) actions.entries.delete(ref);
+    actions.remoteLoads?.delete(`${origin}::${name}`);
+    this.engine.trace.note("mosaic_unlink", { network: name, peerOrigin: new URL(origin).host });
+    this.prune();
   }
 
   /**
