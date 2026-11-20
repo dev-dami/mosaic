@@ -60,7 +60,15 @@ function configFromEnv(): ScoutConfig {
     targets: process.env.SCOUT_TARGETS || undefined,
     maxAdapters: Number(process.env.SCOUT_MAX_ADAPTERS ?? 20),
     learner: process.env.SCOUT_LEARNER ?? (hasClaudeCredentials() ? "claude" : "rules"),
-    browser: () => (browser ??= chromium.launch({ executablePath: process.env.CHROMIUM_PATH })),
+    // A crashed or killed Chromium is launched again on the next use instead of failing every call.
+    browser: () =>
+      (browser ??= chromium.launch({ executablePath: process.env.CHROMIUM_PATH }).then((b) => {
+        b.on("disconnected", () => (browser = null));
+        return b;
+      }, (e) => {
+        browser = null;
+        throw e;
+      })),
   };
 }
 

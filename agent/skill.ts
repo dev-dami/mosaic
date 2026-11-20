@@ -150,6 +150,20 @@ async function readTable(page: Page, s: Step): Promise<Record<string, string>[] 
  */
 export async function runSkill(browser: Browser, origin: string, skill: Skill, rawInput: unknown): Promise<Record<string, unknown>> {
   const input = (rawInput && typeof rawInput === "object" ? rawInput : {}) as Record<string, unknown>;
+  const gotoUrl = (s: Step) => {
+    const url = new URL(render(s.url, input, true), origin);
+    if (url.origin !== origin) throw new Error(`goto ${url.origin} is outside ${origin}`);
+    return url;
+  };
+  // Refuse a run whose gotos leave the target before opening a browser context for it.
+  for (const [i, s] of skill.steps.entries()) {
+    if (s.op !== "goto") continue;
+    try {
+      gotoUrl(s);
+    } catch (e) {
+      throw new Error(`step ${i + 1} (goto ${s.url}) failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
   // The fence fails any request to another origin before it is sent, redirect hops included.
   const { context, page } = await fencedPage(browser, origin);
   page.setDefaultTimeout(STEP_TIMEOUT_MS);
@@ -161,12 +175,9 @@ export async function runSkill(browser: Browser, origin: string, skill: Skill, r
     for (const [i, s] of skill.steps.entries()) {
       try {
         switch (s.op) {
-          case "goto": {
-            const url = new URL(render(s.url, input, true), origin);
-            if (url.origin !== origin) throw new Error(`goto ${url.origin} is outside ${origin}`);
-            await page.goto(url.href, { waitUntil: "load" });
+          case "goto":
+            await page.goto(gotoUrl(s).href, { waitUntil: "load" });
             break;
-          }
           case "fill":
             await page.fill(s.selector, render(s.value, input));
             break;
