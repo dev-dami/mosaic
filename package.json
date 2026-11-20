@@ -7,6 +7,7 @@
     "build:deploy": "bun scripts/build-deploy.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test test",
+    "conformance": "bun scripts/conformance.ts",
     "e2e": "node e2e/mosaic.e2e.cjs",
     "check": "bun run typecheck && bun run test && bun run e2e"
   },

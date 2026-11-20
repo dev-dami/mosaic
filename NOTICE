@@ -6,3 +6,7 @@ Licensed under the Apache License, Version 2.0 (see LICENSE).
 This product includes the nsdeploy browser runtime from the agentic-web project
 (github.com/cognizant-ai-labs/agentic-web, skills/agentify-website/runtime),
 licensed under the Apache License, Version 2.0. See vendor/nsdeploy-runtime/VENDOR.md.
+
+This product includes check_partner.mjs from the agentic-web project
+(github.com/cognizant-ai-labs/agentic-web, skills/agentify-website/scripts), licensed under the
+Apache License, Version 2.0. See vendor/agentic-web-scripts/VENDOR.md.

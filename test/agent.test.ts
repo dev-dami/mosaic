@@ -22,8 +22,8 @@ import { parseHocon } from "../vendor/nsdeploy-runtime/hocon.js";
 // @ts-expect-error plain JS module without types
 import { AgentNetwork, validateNetwork } from "../vendor/nsdeploy-runtime/kernel.js";
 
-/** The agentify-website skill's partner check. Not vendored; set CHECK_PARTNER to its path to run it here. */
-const CHECK_PARTNER = process.env.CHECK_PARTNER ?? "/tmp/claude-probe-aw/agentic-web/skills/agentify-website/scripts/check_partner.mjs";
+/** The agentify-website skill's partner check, vendored (vendor/agentic-web-scripts/VENDOR.md). CHECK_PARTNER overrides it. */
+const CHECK_PARTNER = process.env.CHECK_PARTNER ?? join(import.meta.dir, "../vendor/agentic-web-scripts/scripts/check_partner.mjs");
 const HOST = "http://localhost:4000";
 
 /**
@@ -233,7 +233,7 @@ describe("a Scout-served template conforms to MVP profile 0.3", () => {
     }
   }, 20_000);
 
-  test.skipIf(!existsSync(CHECK_PARTNER))("the agentify-website skill's check_partner.mjs passes it", async () => {
+  test("the agentify-website skill's check_partner.mjs passes it", async () => {
     const proc = Bun.spawn(["node", CHECK_PARTNER, `${at}/${network}`, "--origin", HOST], { stdout: "pipe", stderr: "pipe" });
     const [out, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
     expect(out).not.toContain("ERROR");
