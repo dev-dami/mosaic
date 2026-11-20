@@ -3,7 +3,8 @@
 // `data-origin` and `data-capability` (reads in the runbook, writes in the review area), visible
 // or not. The build badge carries data-testid="build" and gets class `build same` after a
 // connection that left Mosaic's fingerprint unchanged.
-const origin = (port) => `http://localhost:${port}`;
+// A port means a local site; a full URL (a deployed site) is used as it is.
+const origin = (port) => (typeof port === "string" ? port : `http://localhost:${port}`);
 
 module.exports = {
   origin,
