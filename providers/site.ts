@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import Ajv from "ajv";
+import { prebuilt } from "../src/prebuilt";
 import type { Capability } from "../src/protocol";
 import { runtimeRoute } from "../src/runtime-files";
 import { AGENT_MANIFEST_PATH, agenticArtifacts, BRIDGE_MANIFEST_PATH, DEFAULT_LOOK, LINKS_PATH, networkPath } from "./agentic";
@@ -40,11 +41,21 @@ export type Activity = { at: string; capability: string; input: unknown };
 export const ACTION_BRIDGE_PATH = "/bridge/action-bridge.html";
 export const BRIDGE_ACTIONS_PATH = "/bridge/bridge-actions.js";
 export const BRIDGE_CONFIG_PATH = "/bridge/bridge-config.json";
-const actionBridgePage = readFileSync(new URL("./bridge-page.html", import.meta.url), "utf8");
+let bridgePage: string | undefined;
 let actionsBundle: Promise<string> | undefined;
 
-/** providers/bridge-actions.ts built for the browser once per process; every site serves the same code. */
-function bridgeActionsModule(): Promise<string> {
+/** The skill's bridge page template; a deployment carries it in its bundle (src/prebuilt.ts). */
+export function actionBridgePage(): string {
+  bridgePage ??= prebuilt?.bridgePage ?? readFileSync(new URL("./bridge-page.html", import.meta.url), "utf8");
+  return bridgePage;
+}
+
+/**
+ * providers/bridge-actions.ts built for the browser once per process; every site serves the same
+ * code. A deployment carries it prebuilt, so it never runs Bun.build on a request.
+ */
+export function bridgeActionsModule(): Promise<string> {
+  if (prebuilt) return Promise.resolve(prebuilt.bridgeActions);
   actionsBundle ??= Bun.build({ entrypoints: [new URL("./bridge-actions.ts", import.meta.url).pathname], target: "browser", format: "esm", minify: true }).then(
     async (result) => {
       if (!result.success || !result.outputs[0]) throw new AggregateError(result.logs, "bridge-actions.ts did not build");
@@ -123,7 +134,7 @@ export function serveSite(def: SiteDefinition, at: { port?: number; origin?: str
       // The action bridge a caller's runtime frames (reads) or opens in a popup (writes). Only
       // Mosaic hosts may frame it; no COOP, so the popup keeps its opener.
       [ACTION_BRIDGE_PATH]: () =>
-        new Response(actionBridgePage, {
+        new Response(actionBridgePage(), {
           headers: { "content-type": "text/html; charset=utf-8", "content-security-policy": `frame-ancestors ${allowedHosts.join(" ")}` },
         }),
       [BRIDGE_ACTIONS_PATH]: async () =>
