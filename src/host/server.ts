@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import homepage from "./index.html";
 import { runtimeRoute } from "../runtime-files";
+import { buildHostNetwork, parseSiteOrigins } from "./agentic/network";
 
 const port = Number(process.env.PORT ?? 4000);
 
@@ -20,12 +21,20 @@ const build = await sourceFingerprint();
 const suggestions = (process.env.MOSAIC_SUGGEST ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 // Optional: Scout's origin. With it, a site that publishes no manifest can be learned instead of refused.
 const agent = process.env.MOSAIC_AGENT || undefined;
+// Mosaic is itself an open agentic website: its manifest, its "mosaic" network and links.json are
+// public, readable from any origin, and never sent with credentials.
+const agentic = buildHostNetwork({ sites: parseSiteOrigins(process.env.SITE_ORIGINS ?? "") });
+const publicJson = (body: unknown) => () =>
+  Response.json(body, { headers: { "access-control-allow-origin": "*", "cache-control": "no-store" } });
 
 Bun.serve({
   port,
   routes: {
     "/": homepage,
     "/mosaic-host.json": () => Response.json({ build, suggestions, agent }, { headers: { "cache-control": "no-store" } }),
+    "/agent-manifest.json": publicJson(agentic.agentManifest),
+    "/mosaic.network.json": publicJson(agentic.network),
+    "/links.json": publicJson(agentic.links),
     // The vendored nsdeploy browser runtime that runs Mosaic's own agent network.
     ...runtimeRoute,
   },
