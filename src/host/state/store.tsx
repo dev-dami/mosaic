@@ -184,9 +184,12 @@ function createStore(): Store {
       // Nothing reached the registry (no agent, or the network could not be resolved again).
       done = { ok: false, outcome: "not_started", message: e instanceof Error ? e.message : String(e) };
     } finally {
-      pendingWindow = null;
-      if (getState().asking) dispatch({ type: "approval/ask", origin: null });
-      if (getState().confirming) dispatch({ type: "approval/sheet", origin: null });
+      // Only a write owns the approval window; a read finishing meanwhile must not close it.
+      if (effect === "write") {
+        pendingWindow = null;
+        if (getState().asking) dispatch({ type: "approval/ask", origin: null });
+        if (getState().confirming) dispatch({ type: "approval/sheet", origin: null });
+      }
     }
     if (done.ok) dispatch({ type: "run/done", cap: key, output: done.output, at: new Date(), pulse });
     else
