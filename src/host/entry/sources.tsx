@@ -75,7 +75,7 @@ function SourceItem({ conn, side, fresh }: { conn: Conn; side: "right" | "bottom
   const hue = useHueStyle();
   const o = conn.site.site.origin;
   const name = conn.site.site.name;
-  const statusWord = conn.status === "ready" ? "ready" : conn.status === "failed" ? "refused" : "connecting";
+  const statusWord = conn.status === "ready" ? "ready" : "connecting";
   return (
     <motion.li
       layout
@@ -97,7 +97,7 @@ function SourceItem({ conn, side, fresh }: { conn: Conn; side: "right" | "bottom
           }
         >
           <Popover.Trigger className="source-btn" aria-label={`${name}, ${statusWord}`}>
-            <Monogram name={name} origin={o} size="lg" ring={conn.status === "connecting" ? "running" : conn.status === "failed" ? "failed" : undefined} />
+            <Monogram name={name} origin={o} size="lg" ring={conn.status === "connecting" ? "running" : undefined} />
             <span className={`source-dot ${conn.status}`} aria-hidden="true" />
           </Popover.Trigger>
         </Tooltip>
@@ -124,13 +124,12 @@ function SourceDetail({ conn }: { conn: Conn }) {
           <span className="sd-name">{conn.site.site.name}</span>
           <Origin origin={o} />
         </div>
-        <Tag tone={conn.status === "ready" ? "success" : conn.status === "failed" ? "danger" : "neutral"} size="sm">
-          {conn.status === "ready" ? "Ready" : conn.status === "failed" ? "Refused" : "Connecting"}
+        <Tag tone={conn.status === "ready" ? "success" : "neutral"} size="sm">
+          {conn.status === "ready" ? "Ready" : "Connecting"}
         </Tag>
       </header>
       <AgentTag site={conn.site} />
       {conn.site.site.description && <p className="sd-desc">{conn.site.site.description}</p>}
-      {conn.failure && <p className="sd-fail">{conn.failure}</p>}
       <div className="label">What it can do</div>
       <ul className="sd-caps">
         {conn.site.capabilities.map((cap) => {

@@ -7,7 +7,7 @@ The spike code is throwaway and lives in `spike/`: `serve.ts` (hand-written Page
 artifacts, a host page, four chain peers, a scripted OpenAI-compatible mock router),
 `run.cjs` (headless Chromium driver), `check-schemas.ts` (R4), `run-output.txt` (the last
 run). Rerun: `bun spike/serve.ts`, then `CHROMIUM_PATH=... node spike/run.cjs`.
-Delete `spike/` once C3, C4 and C6 land.
+`spike/` was deleted in C7; this note keeps what it showed.
 
 Labels: [observed] = seen in a run; [code] = read in the runtime, not run; [untested].
 

@@ -63,13 +63,12 @@ export function Palette() {
   const connect = (target: string) => {
     const origin = connectTarget(target)?.origin ?? target;
     const existing = model.connFor(origin);
-    if (existing && existing.status !== "failed") {
+    if (existing) {
       const first = model.refs.find((r) => r.origin === origin);
       entryUi.closePalette();
       if (first) jumpTo(first.key, actions.setHot);
       return;
     }
-    if (existing) actions.disconnect(origin);
     setWatching(origin);
     void actions.connect(target);
   };

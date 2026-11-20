@@ -87,6 +87,9 @@ describe("outcomeOf", () => {
   test("a window cancelled before it opened did not start", () => {
     expect(outcomeOf({ action: "r", status: "unknown", error: "Action window cancelled; action not started." }).kind).toBe("not_started");
     expect(outcomeOf({ action: "r", status: "not_started" }).kind).toBe("not_started");
+    // The runtime's words when the window never connected or was cancelled before anything was sent.
+    expect(outcomeOf({ action: "r", status: "unknown", error: "Action bridge unavailable. Check framing policy, callerOrigins and login; no action was sent." }).kind).toBe("not_started");
+    expect(outcomeOf({ action: "r", status: "unknown", error: "Action was cancelled." }).kind).toBe("not_started");
   });
   test("a read's result is its output", () => {
     expect(outcomeOf({ action: "r", status: "succeeded", result: { releases: [] } }, "read")).toEqual({ kind: "done", output: { releases: [] }, requestId: undefined });

@@ -38,7 +38,9 @@ export function WriteCard({ r, index, offPlan }: { r: CapRef; index?: number; of
         ? "Sending now"
         : confirmingName
           ? `Answer ${confirmingName}'s prompt first`
-          : null;
+          : state.writing
+            ? "Another change is still being sent. One at a time."
+            : null;
   const tag = STATUS_TAG[status];
   // The moment a write is published: the number turns into a filled check and the card glows once.
   const [justDone, setJustDone] = useState(false);

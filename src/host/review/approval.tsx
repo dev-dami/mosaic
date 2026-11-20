@@ -32,6 +32,11 @@ export function ApprovalLayer() {
               <p>
                 <b>{name}</b> shows what will change and asks you there. Nothing is sent until you approve in its window.
               </p>
+              {state.popupBlocked && (
+                <p className="approve-blocked" role="alert">
+                  Your browser blocked {name}'s window. Allow pop-ups for this page, then press Open again.
+                </p>
+              )}
               <div className="approve-ask-actions">
                 <Button variant="tertiary" onClick={actions.cancelApproval}>
                   Cancel

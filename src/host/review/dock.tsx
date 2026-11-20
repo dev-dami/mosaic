@@ -210,8 +210,10 @@ function Dock() {
       ? "Everything here is published"
       : busyOrigin
         ? `Answer ${nameOf(busyOrigin)}'s prompt first`
-        : unknown
-          ? `Check ${unknown.siteName} first: its last change has an unknown outcome`
+        : state.writing
+          ? "A change is still being sent"
+        : pending.every((w) => writeStatus(state, w) === "unknown")
+          ? `Nothing left to send. Check ${unknown?.siteName ?? "the site"} for the change with an unknown outcome`
           : pending.some((w) => !model.readyOf(w.origin))
             ? "A site is still starting its bridge"
             : null;
@@ -219,7 +221,7 @@ function Dock() {
   const news = waiting
     ? `Waiting for your answer on ${waiting.site.site.name}`
     : unknown
-      ? `Outcome unknown on ${unknown.siteName}. Check ${unknown.siteName} before trying again.`
+      ? `Outcome unknown on ${unknown.siteName}. Check it there; Mosaic won't send it again.`
       : denied
       ? `Denied on ${denied.siteName}. Nothing changed there.`
       : allDone

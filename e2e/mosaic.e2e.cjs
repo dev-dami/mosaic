@@ -53,10 +53,18 @@ async function main() {
   const context = await browser.newContext({ deviceScaleFactor: 1, viewport: { width: 1280, height: 860 } });
   const page = await context.newPage();
   page.on("pageerror", (e) => console.error("page error:", e.message));
+  const requests = [];
+  page.on("request", (req) => requests.push(req.url()));
   await page.goto(HOST);
   const build = buildBadge(page);
   await build.waitFor();
   const buildBefore = await build.textContent();
+
+  // 0. Loading Mosaic contacts no site: nothing goes to a site before the person consents.
+  await page.waitForTimeout(1000);
+  const allSiteOrigins = Object.values(SITES).map(origin);
+  const early = requests.filter((u) => allSiteOrigins.includes(new URL(u).origin));
+  assert.deepEqual(early, [], "no request to a site origin before consent");
 
   // 1. A site's published network becomes steps: every bridge action of its network is in the
   //    workspace. The connect trace passed all six checks (consent through build).
@@ -111,6 +119,11 @@ async function main() {
   await start("providers/newsletter.ts", SITES.newsletter);
   await entry.connect(page, SITES.newsletter);
   assert.ok((await capabilityCount(page, SITES.newsletter)) > 0, "Inkpost's steps are in the workspace");
+  // Disconnect unlinks it (its steps go, and the agent drops it); connecting again asks again and works.
+  await entry.disconnect(page, SITES.newsletter);
+  assert.equal(await capabilityCount(page, SITES.newsletter), 0, "a disconnected site leaves no steps");
+  await entry.connect(page, SITES.newsletter);
+  assert.ok((await capabilityCount(page, SITES.newsletter)) > 0, "a disconnected site connects again");
   await start("providers/announcer.ts", SITES.announcer);
   await entry.connect(page, SITES.announcer);
   await entry.setDocProp(page, "Project", "Mosaic");
@@ -118,6 +131,25 @@ async function main() {
   await runbook.chooseOption(announce, "excited");
   await runbook.run(announce, "Draft announcement");
   await runbook.waitOutput(announce, "Mosaic v1.0 is here!");
+
+  // 6b. One write at a time: two asks in the same tick start only one; the other is refused, not
+  //     left waiting on a window that belongs to the first.
+  const applyCard = review.writeCard(page, SITES.docs, "apply-docs-update");
+  const scheduleCard = review.writeCard(page, SITES.announcer, "schedule-announcement");
+  await review.openDock(page);
+  await page.evaluate(() => {
+    const buttons = [...document.querySelectorAll(".wcard button")].filter((b) => /^Approve on /.test(b.textContent.trim()));
+    for (const b of buttons) b.click();
+  });
+  await page.getByRole("button", { name: /^Open .* to approve$/ }).waitFor();
+  assert.equal(await page.locator(".wcard.waiting, .wcard.running").count(), 1, "only one write runs");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.waitForFunction(() => !document.querySelector(".sheet-layer.open"));
+  const notStarted = page.locator(".wcard.not_started");
+  await notStarted.first().waitFor();
+  assert.equal(await notStarted.count(), 1, "the cancelled write did not start, and says so");
+  assert.equal(await page.locator(".wcard.unknown").count(), 0, "nothing is left as Outcome unknown");
+  assert.equal((await applyCard.getAttribute("class")).includes("idle") || (await scheduleCard.getAttribute("class")).includes("idle"), true, "the refused write stays as it was");
 
   // 7. The host page cannot call a site's API directly.
   const direct = await page.evaluate(async (url) => {
@@ -209,7 +241,7 @@ async function main() {
   //        turn runs on a local mock router (e2e/settings.e2e.cjs).
   await context.close();
   await require("./settings.e2e.cjs").settingsChecks({ browser, procs, base: BASE, sitePort: SITES.releases, screenshot: process.env.SETTINGS_SCREENSHOT });
-  console.log("e2e: all 18 checks passed");
+  console.log("e2e: all 21 checks passed");
 }
 
 main()

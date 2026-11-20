@@ -51,7 +51,7 @@ export function ActivityLog() {
               </td>
               <td className="act-result" title={rc.requestId ? `Request ${rc.requestId}` : undefined}>
                 <span className={`act-dot ${rc.outcome}`} aria-hidden="true" />
-                {rc.outcome === "done" ? (rc.write ? "Approved" : "Read") : rc.outcome === "denied" ? "Denied, nothing changed" : rc.detail}
+                {rc.outcome === "done" ? (rc.write ? "Published" : "Read") : rc.outcome === "denied" ? "Denied, nothing changed" : rc.detail}
               </td>
               <td className="act-time">
                 <time>{fmtTime(rc.at)}</time>

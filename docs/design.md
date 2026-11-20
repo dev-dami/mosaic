@@ -133,14 +133,14 @@ Area components to build (each owned by one area, see section 8):
 | Component | Area | Job and look |
 |---|---|---|
 | Outcome input | B | The first action. Large Nunito input with a placeholder that says what to type, Project and Version as editable chips under it, `react-textarea-autosize` if it wraps. Re-plans steps as the person types (debounced, animated with `motion` layout). |
-| Command palette | B | `cmdk` dialog on ⌘K. Groups: Connect (a URL typed becomes "Connect <origin>"; `shouldFilter={false}` for URLs), Suggested sites, Steps (jump to), Actions (theme, review). Connecting shows the four stages inline, then "+N capabilities from <host>" with `@number-flow/react`. A refused host is a red row with the reason and no retry spinner. |
+| Command palette | B | `cmdk` dialog on ⌘K. Groups: Connect (a URL typed becomes "Connect <origin>"; `shouldFilter={false}` for URLs), Suggested sites, Steps (jump to), Actions (theme, review). Connecting shows the six stages inline (consent, manifest, exact network, validate, bridge, build), then "+N capabilities from <host>" with `@number-flow/react`. A refused host is a red row with the reason and no retry spinner. |
 | Sources list | B | Slim list or popover: monogram, name, status dot, capabilities on hover; the hue picker (`@radix-ui/react-slider` over a track with the reserved bands hatched) lives in the source's popover. |
 | Step block | A | Sticky header under the top bar: number, title, a "N changes to publish" outline tag in the site's hue, the site chip. Context reads (no input) show in the site chip's details. Output first as content; bound inputs as one line of tokens; Edit opens the fields. A chunky Run only before the first run, then a tertiary "Run again". |
 | Wires | A | On demand only: while an output token, a "feeds" link or an input's source token is hovered or focused (`runbook/flow.ts`), one hand-drawn stroke (`perfect-freehand`) joins that output to the input it fills, and both ends light up. Nothing is drawn at rest; below 640px never. |
 | Review bar | C | A bar with the same left edge and width as the document column: "3 changes to approve", a neutral tile per change (site monogram and state mark), one primary "Review" with ⌘↵. Opens into the write cards: a side panel that pushes the layout aside at 1200px and wider, an overlay drawer below, a draggable bottom sheet on phones. |
 | Write card | C | Title, site pill, inputs via `InputFields compact`, one secondary button "Approve on <site>" with the origin beside it in mono. Done fills the number with a check, washes the card in `--accent-10` once, and shows the receipt with the result's links. |
 | Receipts and toasts | C | The card and the activity log keep each answer. `sonner` (unstyled, chunky card, bottom right above the bar, beside the side panel) echoes each result; never the only record. |
-| Approval sheet | C (`providers/bridge.html`, `providers/sheet.ts`) | The site's own page, its own look. Show values with human labels: "Pre-release: No", not "Pre-release false". A generic sheet cannot know the site's current state, so the only comparison it shows is against the last request it saw for the same capability (`diffWordsWithSpace`), from the sheet's own memory. Plain DOM only; no React on the site's origin. |
+| Approval sheet | C (`providers/bridge-actions.ts`, `providers/sheet.ts`) | The site's own page in a window on its origin, its own look. Show values with human labels: "Pre-release: No", not "Pre-release false". A generic sheet cannot know the site's current state, so the only comparison it shows is against the last request it saw for the same capability (`diffWordsWithSpace`), from the sheet's own memory. Plain DOM only; no React on the site's origin. |
 
 ## 5. Interaction
 
@@ -186,8 +186,8 @@ what to do. Confirmations name what will change. Never claim something Mosaic di
 | `src/host/doc.ts`, `hue.ts`, `format.ts`, `agentic/catalog.ts`, `src/protocol.ts`, `src/form.ts` | foundation | Pure logic and the security boundary. |
 | `src/host/runbook/**` | A runbook | Document frame, steps, inputs, outputs, wires. |
 | `src/host/entry/**` | B entry | Outcome input, palette, connect flow, sources, refused state, `plan.ts`. |
-| `src/host/review/**`, `providers/bridge.html`, `providers/sheet.ts`, `providers/home.ts` | C review | Review bar, write cards, receipts, toasts, approval layer, the site's sheet and home page. |
-| `providers/bridge.ts`, `providers/site.ts`, `providers/{docs,releases,announcer}.ts` | foundation | Message checks, 700 ms Approve delay, same-origin API guard. Do not change. |
+| `src/host/review/**`, `providers/bridge-actions.ts`, `providers/sheet.ts`, `providers/home.ts` | C review | Review bar, write cards, receipts, toasts, approval layer, the site's sheet and home page. |
+| `providers/site.ts`, `providers/{docs,releases,announcer}.ts` | foundation | Same-origin API guard. The 700 ms Approve delay lives in `providers/bridge-actions.ts`; caller checks are the vendored runtime's. Do not change. |
 | `e2e/areas/{entry,runbook,review}.cjs` | the matching area | Selectors only. `e2e/areas/shell.cjs` and `e2e/mosaic.e2e.cjs` (the checks) are foundation. |
 
 Rules for builders: import other areas only through their `index.ts`; use the state through
@@ -201,6 +201,6 @@ Kept contracts:
   (reads in A, writes in C), even when the outcome plan hides it from the main view.
 - Bound inputs carry `data-flow-dst="<origin>#<capability>|<field>"`; output tokens carry
   `data-flow-src` with the same value; a read block carries `data-flow-anchor="<capKey>"`.
-- Bridge iframes: `iframe.bridge[data-origin]`, mounted for as long as the site is connected
+- Approval: "Open <site> to approve" (`.approve-ask`), then the site's sheet in a popup on its origin
   (`ApprovalLayer` must always be mounted). Mosaic never draws over a visible sheet.
 - Build badge: `[data-testid=build]`, class `build same` after an unchanged fingerprint.

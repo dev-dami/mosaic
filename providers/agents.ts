@@ -26,7 +26,7 @@ const PLAYBOOK: { when: RegExp; cause: string; why: string; change: string; resu
     result: "The Connect button now opens the site's sheet on the first click in Safari.",
     change: "Open the site's sheet inside the click handler, before the first `await`, and show a retry hint if the browser blocks it.",
     test: "Add a WebKit run of the connect flow to the browser test.",
-    files: ["src/host/entry/palette.tsx", "src/host/bridge-client.ts", "e2e/mosaic.e2e.cjs"],
+    files: ["src/host/entry/palette.tsx", "src/host/state/store.tsx", "e2e/mosaic.e2e.cjs"],
   },
   {
     when: /narrow|mobile|overlap|layout/i,

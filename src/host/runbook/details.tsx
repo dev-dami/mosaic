@@ -16,7 +16,7 @@ export function SiteDetails({ origin, name, refs, context = [] }: { origin: stri
   return (
     <Popover.Root>
       <Popover.Trigger className="site-chip" style={hue(origin)} aria-label={`${name} details`}>
-        <Monogram name={name} origin={origin} size="sm" ring={status === "connecting" ? "running" : status === "failed" ? "failed" : undefined} />
+        <Monogram name={name} origin={origin} size="sm" ring={status === "connecting" ? "running" : undefined} />
         <span className="site-chip-name">{name}</span>
         <CaretDownIcon size={12} className="site-chip-caret" />
       </Popover.Trigger>
@@ -54,7 +54,7 @@ export function SiteDetails({ origin, name, refs, context = [] }: { origin: stri
             </div>
           )}
           <p className="dp-note">
-            {status === "ready" ? "Its action bridge answered from this origin. Mosaic can call only the actions it lists below." : status === "failed" ? `Refused: ${conn?.failure ?? "no answer"}` : "Waiting for the site's action bridge to answer."}
+            {status === "ready" ? "Its action bridge answered from this origin. Mosaic can call only the capabilities it lists below." : "Waiting for the site's action bridge to answer."}
           </p>
           <ul className="dp-caps">
             {refs.map((r) => {

@@ -146,7 +146,8 @@ export function outcomeOf(receipt: ActionReceipt, effect: "read" | "write" = "wr
   if (receipt.status === "not_started") return { kind: "not_started", message: "Not started: an earlier action did not finish.", requestId };
   if (receipt.status === "unknown") {
     const message = receipt.error || "The outcome is unknown.";
-    if (/not started/i.test(message)) return { kind: "not_started", message, requestId };
+    // The runtime's own words for "nothing was sent": a window cancelled or never connected.
+    if (/not started|no action was sent|action was cancelled/i.test(message)) return { kind: "not_started", message, requestId };
     return { kind: "unknown", message, requestId };
   }
   const result = receipt.result;

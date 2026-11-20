@@ -143,7 +143,7 @@
       button.approve .label { position: relative; }
       /* The short pause before Approve works is visible: the button starts flat and grey, fills with the
          site's colour from the left, then rises onto its ledge when it can be pressed. The timing is
-         bridge.ts's (it sets and clears `disabled`); this only draws it. */
+         bridge-actions.ts's (it sets and clears `disabled`); this only draws it. */
       button.approve:disabled { cursor: wait; translate: 0 var(--depth); box-shadow: none; background: var(--card); color: var(--ink-2); border-color: var(--line-strong); }
       button.approve .fill { position: absolute; inset: 0; background: var(--accent-soft); border-right: 2px solid var(--accent); opacity: 0; transform-origin: left; transform: scaleX(0); }
       button.approve:disabled .fill { opacity: 1; animation: unlock 700ms linear forwards; }

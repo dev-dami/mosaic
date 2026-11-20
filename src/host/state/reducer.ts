@@ -18,6 +18,8 @@ export const initialState: State = {
   receipts: [],
   confirming: null,
   asking: null,
+  popupBlocked: false,
+  writing: null,
   sending: false,
   hues: {},
   fresh: [],
@@ -86,15 +88,12 @@ export function reducer(state: State, action: Action): State {
     case "site/settled":
       return { ...state, fresh: state.fresh.filter((o) => o !== action.origin) };
 
-    case "site/bridge": {
-      const { origin, status, failure } = action;
+    case "site/ready": {
+      const { origin } = action;
       return {
         ...state,
-        conns: state.conns.map((c) => (c.site.site.origin === origin ? { ...c, status, failure } : c)),
-        trace: traceFor(state, origin, (t) => ({
-          ...t,
-          stages: settleLast(t.stages, { stage: "bridge", state: status === "ready" ? "done" : "failed", detail: failure }),
-        })),
+        conns: state.conns.map((c) => (c.site.site.origin === origin ? { ...c, status: "ready" } : c)),
+        trace: traceFor(state, origin, (t) => ({ ...t, stages: settleLast(t.stages, { stage: "bridge", state: "done" }) })),
       };
     }
 
@@ -157,7 +156,13 @@ export function reducer(state: State, action: Action): State {
       return { ...state, confirming: action.origin, asking: action.origin ? null : state.asking };
 
     case "approval/ask":
-      return { ...state, asking: action.origin };
+      return { ...state, asking: action.origin, popupBlocked: false };
+
+    case "approval/blocked":
+      return { ...state, popupBlocked: true };
+
+    case "write/active":
+      return { ...state, writing: action.cap };
 
     case "publish/sending":
       return { ...state, sending: action.sending };

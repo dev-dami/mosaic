@@ -8,16 +8,14 @@
 // window on the site's origin, where the site's own sheet asks the person. Mosaic never approves.
 import { createContext, useContext, useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { FormError } from "../../form";
-import { outcomeOf, pickNetwork, siteFromEntries, connectTarget, type PublishedManifest, type Site } from "../agentic/catalog";
+import { connectTarget, outcomeOf, pickNetwork, siteFromEntries, type PublishedManifest, type Site } from "../agentic/catalog";
 import type { MosaicAgent } from "../agentic/engine";
 import { hostOf, type Binding, type CapKey, type CapRef, capKey } from "../doc";
 import { useAgentEngine } from "../settings";
-import { deriveModel, type Model } from "./model";
+import { deriveModel, inputKeys, type Model } from "./model";
 import { initialState, reducer } from "./reducer";
 import type { Action, HostInfo, Receipt, State } from "./types";
 
-/** How long a site's own sheet stays up after its result, so "Done" or "Denied" is seen. */
-export const SHEET_LINGER_MS = 750;
 /** How long a newly connected site counts as fresh. */
 export const FRESH_MS = 2600;
 /** The runtime module whose setActionWindowPrompt Mosaic owns. A variable, so the bundler leaves it to the browser. */
@@ -105,7 +103,10 @@ function createStore(): Store {
 
   // A write's window must open in the person's click. The runtime asks through this prompt; the
   // review layer shows "Open <site> to approve" and calls openApproval inside the click.
-  let pendingWindow: { url: string; origin: string; resolve: (w: Window) => void; reject: (e: Error) => void } | null = null;
+  /** The one write in flight (writes run one at a time), and whether its site's window was opened. */
+  type WriteRun = { key: CapKey; opened: boolean };
+  let currentWrite: WriteRun | null = null as WriteRun | null;
+  let pendingWindow: { url: string; origin: string; owner: WriteRun | null; resolve: (w: Window) => void; reject: (e: Error) => void } | null = null;
   if (typeof window !== "undefined") {
     void import(/* @vite-ignore */ ACTION_TRANSPORT_URL)
       .then((mod: { setActionWindowPrompt: (fn: unknown) => void }) =>
@@ -114,7 +115,7 @@ function createStore(): Store {
             new Promise<Window>((resolve, reject) => {
               if (signal?.aborted) return reject(new Error(NOT_STARTED));
               pendingWindow?.reject(new Error(NOT_STARTED));
-              pendingWindow = { url, origin, resolve, reject };
+              pendingWindow = { url, origin, owner: currentWrite, resolve, reject };
               dispatch({ type: "approval/ask", origin });
               signal?.addEventListener(
                 "abort",
@@ -166,6 +167,9 @@ function createStore(): Store {
 
   /** One action through the registry. A write opens the site's window (see the prompt above). */
   async function execute(site: Site, key: CapKey, id: string, effect: "read" | "write", input: unknown, pulse: boolean): Promise<Done> {
+    // Set before the first await, so a second write in the same tick is refused (see run).
+    const mine = effect === "write" ? (currentWrite = { key, opened: false }) : null;
+    if (mine) dispatch({ type: "write/active", cap: key });
     dispatch({ type: "run/started", cap: key });
     let done: Done;
     try {
@@ -173,7 +177,9 @@ function createStore(): Store {
       const entry = await entryFor(a, site, id);
       if (!entry) throw new Error(`${site.site.name} no longer offers ${id}.`);
       const receipts = await a.engine.actions.execute([{ entry, args: input }], async () => true, crypto.randomUUID());
-      const o = outcomeOf(receipts?.[0] ?? { action: entry.ref, status: "not_started" }, effect);
+      let o = outcomeOf(receipts?.[0] ?? { action: entry.ref, status: "not_started" }, effect);
+      // A write whose window was never opened cannot have reached the site.
+      if (mine && !mine.opened && o.kind === "unknown") o = { kind: "not_started", message: `The approval window was never opened, so nothing was sent to ${site.site.name}.`, requestId: o.requestId };
       done =
         o.kind === "done"
           ? { ok: true, output: o.output, requestId: o.requestId }
@@ -184,11 +190,15 @@ function createStore(): Store {
       // Nothing reached the registry (no agent, or the network could not be resolved again).
       done = { ok: false, outcome: "not_started", message: e instanceof Error ? e.message : String(e) };
     } finally {
-      // Only a write owns the approval window; a read finishing meanwhile must not close it.
-      if (effect === "write") {
-        pendingWindow = null;
-        if (getState().asking) dispatch({ type: "approval/ask", origin: null });
-        if (getState().confirming) dispatch({ type: "approval/sheet", origin: null });
+      // Only this write's own window is closed; a read finishing meanwhile leaves it alone.
+      if (mine) {
+        if (pendingWindow?.owner === mine) pendingWindow = null;
+        if (currentWrite === mine) {
+          currentWrite = null;
+          if (getState().asking) dispatch({ type: "approval/ask", origin: null });
+          if (getState().confirming) dispatch({ type: "approval/sheet", origin: null });
+          dispatch({ type: "write/active", cap: null });
+        }
       }
     }
     if (done.ok) dispatch({ type: "run/done", cap: key, output: done.output, at: new Date(), pulse });
@@ -209,6 +219,8 @@ function createStore(): Store {
     const last = getState().runs[r.key];
     // The site may already have done it: never send it again from here.
     if (r.cap.side_effects === "write" && last?.status === "error" && last.unknown) return false;
+    // One write at a time: its window, its sheet and its answer belong to it alone.
+    if (r.cap.side_effects === "write" && currentWrite) return false;
     let input: unknown;
     try {
       input = deriveModel(getState()).inputFor(r);
@@ -239,6 +251,9 @@ function createStore(): Store {
     return done.ok;
   }
 
+  /** Origins the person allowed in a connect that stopped at "pick a network". */
+  const choiceConsent = new Set<string>();
+
   const fail = (origin: string, message: string) => {
     dispatch({ type: "connect/failed", origin, message });
     return false;
@@ -254,7 +269,7 @@ function createStore(): Store {
       const { origin } = target;
       const host = hostOf(origin);
       const existing = connFor(origin);
-      if (existing && existing.status !== "failed") {
+      if (existing) {
         dispatch({ type: "connect/rejected", message: `${host} is already connected` });
         return false;
       }
@@ -265,8 +280,9 @@ function createStore(): Store {
       } catch (e) {
         return fail(origin, e instanceof Error ? e.message : String(e));
       }
-      // 1. Consent, before any request to the site.
-      const decision = await a.engine.requestConsent({
+      // 1. Consent, before any request to the site. Picking one of its networks right after the
+      //    person allowed it (connect/choose) does not ask again.
+      const decision = choiceConsent.delete(origin) ? "allow" : await a.engine.requestConsent({
         kind: "connect",
         peerOrigin: host,
         peerLabel: target.network ?? host,
@@ -277,7 +293,9 @@ function createStore(): Store {
       dispatch({ type: "connect/stage", origin, stage: "manifest" });
       let manifest: PublishedManifest;
       try {
-        const res = await fetch(`${origin}/agent-manifest.json`, { credentials: "omit", cache: "no-store", signal: AbortSignal.timeout(10_000) });
+        // No redirects: a manifest served from another origin is not this site's.
+        const res = await fetch(`${origin}/agent-manifest.json`, { credentials: "omit", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10_000) });
+        if (new URL(res.url).origin !== origin) throw new Error(`${host}/agent-manifest.json came from another origin`);
         if (!res.ok) throw new Error(`HTTP ${res.status} for ${host}/agent-manifest.json`);
         manifest = (await res.json()) as PublishedManifest;
         if (!manifest || !Array.isArray(manifest.networks)) throw new Error(`${host}/agent-manifest.json lists no networks`);
@@ -291,6 +309,7 @@ function createStore(): Store {
       try {
         const pick = pickNetwork(manifest, target.network, host);
         if ("choices" in pick) {
+          choiceConsent.add(origin);
           dispatch({ type: "connect/choose", origin, choices: pick.choices });
           return false;
         }
@@ -313,7 +332,7 @@ function createStore(): Store {
       }
       dispatch({ type: "connect/stage", origin, stage: "bridge" });
       const site = siteFromEntries(a.engine.actions.entries.values(), { origin, network, manifest });
-      if (!site.capabilities.length) return fail(origin, `${site.site.name}'s action bridge lists no actions for ${location.host}. Nothing was run.`);
+      if (!site.capabilities.length) return fail(origin, `${site.site.name}'s action bridge lists no capabilities for ${location.host}. Nothing was run.`);
       dispatch({
         type: "connect/stage",
         origin,
@@ -322,23 +341,32 @@ function createStore(): Store {
       });
       await pace(180);
       dispatch({ type: "site/added", site, key: nextKey++ });
-      dispatch({ type: "site/bridge", origin, status: "ready" });
+      dispatch({ type: "site/ready", origin });
       setTimeout(() => dispatch({ type: "site/settled", origin }), FRESH_MS);
       checkBuild(origin);
       runContextReads(site);
       return true;
     },
     disconnect(origin) {
+      // Unlink in the agent too: it can no longer reach the site, and its slot frees up.
+      const conn = connFor(origin);
+      if (conn) agent?.disconnectNetwork(conn.site.url);
       dispatch({ type: "site/removed", origin });
     },
     run,
     async sendAll() {
       dispatch({ type: "publish/sending", sending: true });
       try {
-        for (const w of deriveModel(getState()).writes) {
-          const last = getState().runs[w.key];
-          if (last?.status === "done") continue;
-          if (last?.status === "error" && last.unknown) break;
+        const model = deriveModel(getState());
+        const isUnknown = (key: CapKey) => {
+          const r = getState().runs[key];
+          return r?.status === "error" && !!r.unknown;
+        };
+        for (const w of model.writes) {
+          if (getState().runs[w.key]?.status === "done") continue;
+          // Skip a write with an unknown outcome, and any write that takes a value from one.
+          if (isUnknown(w.key)) continue;
+          if (inputKeys(w).some((f) => { const b = model.bindingFor(w.key, f); return !!b && b.kind !== "prop" && isUnknown(b.cap); })) continue;
           if (!(await run(w))) break;
         }
       } finally {
@@ -349,7 +377,11 @@ function createStore(): Store {
       const p = pendingWindow;
       if (!p) return;
       const popup = window.open(p.url, "_blank", "popup,width=700,height=650");
-      if (!popup) return;
+      if (!popup) {
+        dispatch({ type: "approval/blocked" });
+        return;
+      }
+      if (p.owner) p.owner.opened = true;
       pendingWindow = null;
       dispatch({ type: "approval/sheet", origin: p.origin });
       p.resolve(popup);

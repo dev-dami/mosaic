@@ -72,6 +72,8 @@ export interface RuntimeEngine {
   trace: RuntimeTrace;
   history: unknown[];
   runtimeAllowedPeers: Set<string>;
+  /** The runtime's cache of resolved peer networks (remote.js RemoteRegistry). */
+  registry: { cache: Map<string, unknown> };
   /** The runtime's action registry: every connected site's bridge actions (agentic/catalog.ts). */
   actions: ActionRegistry;
   onConsent: ((info: ConsentRequest) => Promise<ConsentDecision>) | null;
@@ -301,6 +303,30 @@ export class MosaicAgent {
     } finally {
       this.prune();
     }
+  }
+
+  /**
+   * Undoes connectNetwork for `<origin>/<name>`: clears the link slot (so the front agent no longer
+   * sees it and a spare slot frees up), stops allowing the origin unless another link still uses it,
+   * forgets the resolved network, and drops its actions from the registry. A site the host's own
+   * manifest allows stays allowed there; with no slot bound the model still cannot reach it.
+   */
+  disconnectNetwork(rawUrl: string): void {
+    const url = rawUrl.replace(/\/+$/, "");
+    const cut = url.lastIndexOf("/");
+    const origin = url.slice(0, cut);
+    const name = url.slice(cut + 1);
+    const net = this.network;
+    for (const [slot, target] of Object.entries(net.links)) if (target === url) delete net.links[slot];
+    const at = this.connected.findIndex((b) => b.url === url);
+    if (at >= 0) this.connected.splice(at, 1);
+    if (!Object.values(net.links).some((t) => t.startsWith(`${origin}/`))) this.engine.runtimeAllowedPeers.delete(origin);
+    this.engine.registry.cache.delete(`${origin}::${name}`);
+    const actions = this.engine.actions as unknown as { entries: Map<string, { base: string; network: string }>; remoteLoads?: Map<string, unknown> };
+    for (const [ref, entry] of actions.entries) if (entry.base.replace(/\/+$/, "") === origin && entry.network === name) actions.entries.delete(ref);
+    actions.remoteLoads?.delete(`${origin}::${name}`);
+    this.engine.trace.note("mosaic_unlink", { network: name, peerOrigin: new URL(origin).host });
+    this.prune();
   }
 
   /**

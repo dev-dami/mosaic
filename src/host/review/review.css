@@ -163,6 +163,7 @@
   animation: sheet-in var(--t-base) var(--ease-out);
 }
 .approve-ask p { margin: 0; max-width: 36ch; font: 400 14px/1.45 var(--font-sans); }
+.approve-blocked { color: var(--danger, #c0392b); font-weight: 600; }
 .approve-ask-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .sheet-label, .sheet-wait {
   align-self: center; display: inline-flex; align-items: center; gap: 8px; max-width: 100%;

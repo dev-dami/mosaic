@@ -31,6 +31,12 @@ module.exports = {
     await box.waitFor();
     return box;
   },
+  /** Disconnect a connected site from its chip in the sources rail. */
+  async disconnect(page, port) {
+    await page.locator(`.source[data-origin="${origin(port)}"] .source-btn`).click();
+    await page.getByRole("button", { name: "Disconnect" }).click();
+    await page.locator(`.source[data-origin="${origin(port)}"]`).waitFor({ state: "detached" });
+  },
   /** Close the palette. */
   async closePalette(page) {
     await page.keyboard.press("Escape");

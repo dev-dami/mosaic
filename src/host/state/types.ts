@@ -5,9 +5,9 @@ import type { FormValues } from "../../form";
 import type { Site } from "../agentic/catalog";
 import type { Binding, CapKey } from "../doc";
 
-export type ConnStatus = "connecting" | "ready" | "failed";
-/** One connected site network. `failed` covers a bridge that refused this host or never answered. */
-export type Conn = { key: number; site: Site; status: ConnStatus; failure?: string };
+export type ConnStatus = "connecting" | "ready";
+/** One connected site network. A connection is added only once its action bridge answered. */
+export type Conn = { key: number; site: Site; status: ConnStatus };
 
 export type Run =
   | { status: "idle" }
@@ -87,6 +87,10 @@ export type State = {
   confirming: string | null;
   /** Origin waiting for the person to open its approval window (a click must open it). */
   asking: string | null;
+  /** The browser blocked the approval window the person asked to open. */
+  popupBlocked: boolean;
+  /** The one write in flight: writes run one at a time, from the click to the site's answer. */
+  writing: CapKey | null;
   /** True while "review all" walks through the pending writes. */
   sending: boolean;
   /** Origins whose hue the host assigned or the person picked. */
@@ -109,7 +113,7 @@ export type Action =
   | { type: "connect/failed"; origin: string; message: string }
   | { type: "site/added"; site: Site; key: number }
   | { type: "site/settled"; origin: string }
-  | { type: "site/bridge"; origin: string; status: "ready" | "failed"; failure?: string }
+  | { type: "site/ready"; origin: string }
   | { type: "site/build-checked"; origin: string; build: string; same: boolean }
   | { type: "site/removed"; origin: string }
   | { type: "site/hue"; origin: string; hue: number }
@@ -123,5 +127,7 @@ export type Action =
   | { type: "receipt/added"; receipt: Receipt }
   | { type: "approval/sheet"; origin: string | null }
   | { type: "approval/ask"; origin: string | null }
+  | { type: "approval/blocked" }
+  | { type: "write/active"; cap: CapKey | null }
   | { type: "publish/sending"; sending: boolean }
   | { type: "ui/hot"; cap: CapKey | null };

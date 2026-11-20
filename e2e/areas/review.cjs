@@ -14,6 +14,7 @@ async function openDock(page) {
 }
 
 module.exports = {
+  openDock,
   /** A write capability's card (wherever pending writes are reviewed). */
   writeCard: (page, port, id) => page.locator(`.cap[data-origin="${origin(port)}"][data-capability="${id}"]`),
   /** Wait until one of the card's inputs is bound to `ref` ("<origin>#<capability>|<field>"). */

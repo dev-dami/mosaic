@@ -35,7 +35,7 @@ export function refusalOf(t: Trace): Refusal | null {
     case "validate":
       return { stage: "validate", headline: `${host}'s network isn't valid`, help: "The runtime could not load or check the network it publishes, so Mosaic won't run it. The site needs to fix it.", raw };
     case "bridge":
-      if (/callerOrigins|not exposed|lists no actions/i.test(raw))
+      if (/callerOrigins|not exposed|lists no capabilities/i.test(raw))
         return { stage: "bridge", headline: `${host} refused this Mosaic`, help: `Its action bridge only answers the hosts it lists, and ${location.host} isn't one of them. Nothing was run. Ask the site to allow this origin.`, raw };
       return { stage: "bridge", headline: `${host}'s action bridge didn't answer`, help: "The network was fine, but the site's own bridge page never replied. Check that the site is up, then try again.", raw };
     default:
@@ -74,7 +74,7 @@ export function checkRows(t: Trace): CheckRow[] {
           title: state === "doing" ? "Waiting for the bridge" : state === "failed" ? "Bridge refused" : "Bridge answered",
           detail:
             state === "done"
-              ? `${name}'s own bridge on ${host} listed ${t.capabilities ?? 0} actions, ${writes} ${writes === 1 ? "changes" : "change"} the site. Changes are approved there.`
+              ? `${name}'s own bridge on ${host} listed ${t.capabilities ?? 0} capabilities, ${writes} ${writes === 1 ? "changes" : "change"} the site. Changes are approved there.`
               : `${name}'s own page, on ${host}`,
         };
       case "build":
