@@ -30,7 +30,7 @@ export type Capability = {
 
 export type Manifest = {
   mosaic: "capabilities/0";
-  site: { name: string; origin: string; description?: string };
+  site: { name: string; origin: string; description?: string; theme_color?: string };
   bridge: string;
   capabilities: Capability[];
 };

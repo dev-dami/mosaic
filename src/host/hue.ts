@@ -1,31 +1,17 @@
-// Site hues. The host assigns every connected site a hue from its origin, so a site cannot pick
-// another site's colour. Hues stay inside two bands that are clear of the semantic colours
-// (red 27, amber 66-92, green 150) and at least 30 degrees from the accent (268), so a site's mark
-// never reads as "error", "warning", "done" or "selected", and never sits beside a primary button
-// looking like it.
+// Site identity colours. A site declares a theme_color in its manifest (the same idea as the Web
+// App Manifest's theme_color). Mosaic takes that colour's hue, so the site looks like itself in
+// Mosaic and on its own approval sheet. Mosaic still decides: when the hue is too close to one that
+// an earlier connected site holds, it is moved away, so a site cannot dress up as another one.
+// Lightness and chroma come from Mosaic (theme.css), so any hue meets contrast. Status colours are
+// told apart by form (an icon and a word on a fill), not by keeping site hues out of their range.
 // Owner: foundation (shared). Pure, no DOM.
 import { hueOf } from "./doc";
 
-/** Inclusive hue bands a site may use, in degrees. */
-export const SITE_HUE_BANDS: readonly (readonly [number, number])[] = [
-  [190, 237],
-  [299, 350],
-];
-
-/** Hues reserved for meaning. Documented here so a hue picker can show why a band is closed. */
-export const RESERVED_HUES = [
-  { name: "danger", from: 0, to: 45 },
-  { name: "warning", from: 46, to: 110 },
-  { name: "success", from: 111, to: 189 },
-  { name: "accent", from: 238, to: 298 },
-  { name: "danger", from: 351, to: 360 },
-] as const;
-
-const WIDTHS = SITE_HUE_BANDS.map(([a, b]) => b - a);
-const SPAN = WIDTHS.reduce((s, w) => s + w, 0);
-/** Two connected sites keep at least this many degrees apart when possible: wide enough that three
- * sites read as three colours (teal, violet, pink), not three shades of one. */
+/** Two connected sites keep at least this many degrees apart: wide enough to read as two colours. */
 export const MIN_SITE_HUE_GAP = 34;
+
+/** Eight hues about 45 degrees apart, for a site that declares no colour. */
+const SLOTS = [350, 35, 80, 125, 165, 215, 260, 300];
 
 const norm = (h: number) => ((h % 360) + 360) % 360;
 
@@ -34,57 +20,46 @@ export function hueDistance(a: number, b: number): number {
   return Math.min(d, 360 - d);
 }
 
-export function isSafeHue(h: number): boolean {
-  const x = norm(h);
-  return SITE_HUE_BANDS.some(([a, b]) => x >= a && x <= b);
+/** The OKLCH hue of a "#rrggbb" colour, or null for anything else or a grey. */
+export function hueOfColor(color: string | undefined): number | null {
+  const m = color?.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (!m) return null;
+  const lin = (x: string) => {
+    const c = parseInt(x, 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const [r, g, b] = [lin(m[1]!), lin(m[2]!), lin(m[3]!)];
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const mm = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  const A = 1.9779984951 * l - 2.428592205 * mm + 0.4505937099 * s;
+  const B = 0.0259040371 * l + 0.7827717662 * mm - 0.808675766 * s;
+  if (Math.hypot(A, B) < 0.02) return null;
+  return Math.round(norm((Math.atan2(B, A) * 180) / Math.PI));
 }
-
-/** Position along the joined bands (0..SPAN) to a hue. */
-function fromPosition(p: number): number {
-  let x = ((p % SPAN) + SPAN) % SPAN;
-  for (let i = 0; i < SITE_HUE_BANDS.length; i++) {
-    const [a] = SITE_HUE_BANDS[i]!;
-    const w = WIDTHS[i]!;
-    if (x <= w) return a + x;
-    x -= w;
-  }
-  return SITE_HUE_BANDS[0]![0];
-}
-
-/** The nearest hue a site may use. A safe hue is returned unchanged (rounded). */
-export function snapHue(h: number): number {
-  const x = norm(h);
-  if (isSafeHue(x)) return Math.round(x);
-  let best = SITE_HUE_BANDS[0]![0];
-  for (const [a, b] of SITE_HUE_BANDS) {
-    for (const edge of [a, b]) if (hueDistance(x, edge) < hueDistance(x, best)) best = edge;
-  }
-  return best;
-}
-
-/** The band edges: four hues at least 47 degrees apart, tried first so three or four sites always read as different colours. */
-const SLOTS = SITE_HUE_BANDS.flatMap(([a, b]) => [a, b]);
 
 /**
- * The hue for a site. A hash of its origin picks where to start among the band edges (SLOTS); the
- * first edge at least MIN_SITE_HUE_GAP from every hue already `taken` wins. When every edge is
- * crowded, it moves along the bands to the position farthest from every taken hue. Deterministic.
+ * The hue for a site: its declared hue when it has one, else a slot picked by a hash of its origin.
+ * If that hue sits within MIN_SITE_HUE_GAP of a hue already `taken`, it moves the shortest way out.
+ * When the wheel is too crowded for that, it takes the hue farthest from every taken one.
+ * Deterministic.
  */
-export function siteHue(origin: string, taken: readonly number[] = []): number {
+export function siteHue(origin: string, taken: readonly number[] = [], declared: number | null = null): number {
   const gapOf = (h: number) => (taken.length ? Math.min(...taken.map((t) => hueDistance(t, h))) : 360);
-  const start = hueOf(origin) % SLOTS.length;
-  for (let i = 0; i < SLOTS.length; i++) {
-    const h = SLOTS[(start + i) % SLOTS.length]!;
-    if (gapOf(h) >= MIN_SITE_HUE_GAP) return h;
+  let want = declared;
+  if (want === null) {
+    const start = hueOf(origin) % SLOTS.length;
+    want = SLOTS[start]!;
+    for (let i = 0; i < SLOTS.length; i++) {
+      const h = SLOTS[(start + i) % SLOTS.length]!;
+      if (gapOf(h) >= MIN_SITE_HUE_GAP) return h;
+    }
   }
-  const base = (hueOf(origin) / 360) * SPAN;
-  const steps = 49;
-  let best = Math.round(fromPosition(base));
-  let bestGap = -1;
-  for (let i = 0; i < steps; i++) {
-    const h = Math.round(fromPosition(base + (i * SPAN) / steps));
-    const gap = gapOf(h);
-    if (gap > bestGap) [best, bestGap] = [h, gap];
+  if (gapOf(want) >= MIN_SITE_HUE_GAP) return Math.round(norm(want));
+  for (let d = 1; d <= 180; d++) {
+    for (const h of [want + d, want - d]) if (gapOf(h) >= MIN_SITE_HUE_GAP) return Math.round(norm(h));
   }
-  return best;
+  let best = want;
+  for (let h = 0; h < 360; h++) if (gapOf(h) > gapOf(best)) best = h;
+  return Math.round(norm(best));
 }

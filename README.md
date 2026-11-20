@@ -1,3 +1,5 @@
+<img src="assets/logo.svg" width="72" alt="Mosaic logo: four tiles around one missing piece">
+
 # Mosaic
 
 **What if the web could build the app you need, instead of making you navigate the apps it has?**

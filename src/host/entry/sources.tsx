@@ -8,7 +8,7 @@ import * as Slider from "@radix-ui/react-slider";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { capKey, hostOf } from "../doc";
-import { isSafeHue, RESERVED_HUES, SITE_HUE_BANDS, siteHue } from "../hue";
+import { siteHue } from "../hue";
 import { Button, Disclosure, Kbd, Monogram, Origin, Tag, Tooltip, useHueStyle } from "../primitives";
 import { useMosaic, type Conn } from "../state";
 import { jumpTo } from "./palette";
@@ -169,30 +169,17 @@ function SourceDetail({ conn }: { conn: Conn }) {
   );
 }
 
-/** The next hue a site may use, moving from `from` toward `to`; reserved bands are skipped, not entered. */
-function stepHue(from: number, to: number): number {
-  if (isSafeHue(to)) return Math.round(to);
-  const up = to > from;
-  const edges = SITE_HUE_BANDS.flatMap(([a, b]) => [a, b]);
-  if (up) return SITE_HUE_BANDS.find(([a]) => a > to)?.[0] ?? SITE_HUE_BANDS[0]![0];
-  return [...edges].reverse().find((e) => e < to && SITE_HUE_BANDS.some(([, b]) => b === e)) ?? SITE_HUE_BANDS.at(-1)![1];
-}
-
-/** Hue slider over a strip of every hue. Hatched bands are kept for status colours and the accent. */
+/** Hue slider over a strip of every hue. It starts at the site's own colour; a change holds in this browser. */
 function HuePicker({ origin, name }: { origin: string; name: string }) {
   const { state, actions } = useMosaic();
   const h = state.hues[origin] ?? siteHue(origin);
   return (
     <div className="hue">
-      <Slider.Root className="hue-slider" min={0} max={359} step={1} value={[h]} onValueChange={([v]) => v !== undefined && actions.setHue(origin, stepHue(h, v))} aria-label={`Colour for ${name}`}>
-        <Slider.Track className="hue-track">
-          {RESERVED_HUES.map((r, i) => (
-            <span key={i} className="hue-reserved" style={{ left: `${(r.from / 360) * 100}%`, width: `${((r.to - r.from + 1) / 360) * 100}%` }} />
-          ))}
-        </Slider.Track>
+      <Slider.Root className="hue-slider" min={0} max={359} step={1} value={[h]} onValueChange={([v]) => v !== undefined && actions.setHue(origin, v)} aria-label={`Colour for ${name}`}>
+        <Slider.Track className="hue-track" />
         <Slider.Thumb className="hue-thumb" />
       </Slider.Root>
-      <p className="hue-note">Hatched hues are kept for errors, warnings, done and selection, so a site never looks like one.</p>
+      <p className="hue-note">Starts from the colour the site declares. Mosaic moves it if another connected site is too close.</p>
     </div>
   );
 }

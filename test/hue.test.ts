@@ -1,41 +1,48 @@
 import { describe, expect, test } from "bun:test";
-import { hueDistance, isSafeHue, MIN_SITE_HUE_GAP, siteHue, snapHue } from "../src/host/hue";
+import { hueDistance, hueOfColor, MIN_SITE_HUE_GAP, siteHue } from "../src/host/hue";
 
 const origins = Array.from({ length: 200 }, (_, i) => `https://site-${i}.example`);
+const minGap = (t: number[]) => Math.min(...t.flatMap((a, i) => t.slice(i + 1).map((b) => hueDistance(a, b))));
 
 describe("site hues", () => {
-  test("every assigned hue avoids red, amber, green and the accent", () => {
-    for (const o of origins) {
-      const h = siteHue(o);
-      expect(isSafeHue(h)).toBe(true);
-      for (const reserved of [27, 66, 80, 92, 150]) expect(hueDistance(h, reserved)).toBeGreaterThan(12);
-      // The accent (primary buttons, focus) keeps a 30 degree moat.
-      expect(hueDistance(h, 268)).toBeGreaterThanOrEqual(30);
-    }
+  test("reads the hue of a declared colour", () => {
+    expect(hueOfColor("#ff0000")).toBeGreaterThan(20);
+    expect(hueOfColor("#ff0000")).toBeLessThan(35);
+    expect(hueOfColor("#2f6fec")).toBeGreaterThan(250);
+    expect(hueOfColor("#2f6fec")).toBeLessThan(270);
+    expect(hueOfColor("#808080")).toBeNull();
+    expect(hueOfColor("blue")).toBeNull();
+    expect(hueOfColor(undefined)).toBeNull();
+  });
+
+  test("a site keeps its own colour when no connected site is close", () => {
+    expect(siteHue("https://a.example", [], 300)).toBe(300);
+    expect(siteHue("https://a.example", [200, 40], 300)).toBe(300);
+  });
+
+  test("a site cannot take a colour another connected site already shows", () => {
+    // Same declared colour as an earlier site: moved the shortest way out of its reach.
+    const h = siteHue("https://copycat.example", [300], 300);
+    expect(hueDistance(h, 300)).toBeGreaterThanOrEqual(MIN_SITE_HUE_GAP);
+    expect(hueDistance(h, 300)).toBeLessThanOrEqual(MIN_SITE_HUE_GAP + 1);
+    expect(hueDistance(siteHue("https://near.example", [300], 310), 300)).toBeGreaterThanOrEqual(MIN_SITE_HUE_GAP);
   });
 
   test("is stable per origin", () => {
     expect(siteHue("http://localhost:4101")).toBe(siteHue("http://localhost:4101"));
   });
 
-  test("keeps apart from hues already taken", () => {
-    const minGap = (t: number[]) => Math.min(...t.flatMap((a, i) => t.slice(i + 1).map((b) => hueDistance(a, b))));
+  test("sites without a declared colour keep apart", () => {
     for (let s = 0; s < 40; s++) {
       const taken: number[] = [];
       for (const o of origins.slice(s * 5, s * 5 + 5)) taken.push(siteHue(o, taken));
-      // Three sites always get the full gap; the safe bands are under 100 degrees wide, so five
-      // sites share it but stay clearly apart.
-      expect(minGap(taken.slice(0, 3))).toBeGreaterThanOrEqual(MIN_SITE_HUE_GAP);
-      // Up to four sites take the band edges, 47 degrees or more apart.
-      expect(minGap(taken.slice(0, 4))).toBeGreaterThanOrEqual(47);
-      expect(minGap(taken)).toBeGreaterThanOrEqual(24);
+      expect(minGap(taken)).toBeGreaterThanOrEqual(MIN_SITE_HUE_GAP);
     }
   });
 
-  test("a picked hue snaps out of a reserved band", () => {
-    expect(isSafeHue(snapHue(150))).toBe(true);
-    expect(isSafeHue(snapHue(27))).toBe(true);
-    expect(isSafeHue(snapHue(268))).toBe(true);
-    expect(snapHue(200)).toBe(200);
+  test("a crowded wheel still gives the most distant hue", () => {
+    const taken = Array.from({ length: 12 }, (_, i) => i * 30);
+    const h = siteHue("https://late.example", taken, 0);
+    expect(Math.min(...taken.map((t) => hueDistance(t, h)))).toBe(15);
   });
 });

@@ -38,14 +38,15 @@
 .step-key-badge { position: absolute; top: -6px; right: -6px; width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center; background: var(--success-solid); color: var(--on-solid); box-shadow: 0 0 0 2px var(--bg); }
 .step-desc { margin: -6px 0 12px 50px; color: var(--muted); font-size: 13px; }
 .new-pill { flex: none; font: 600 11px/1 var(--font-sans); color: var(--site-ink); border: 1px dashed var(--site-line); border-radius: var(--radius); padding: 4px 7px; animation: rise 0.2s var(--ease-out); }
-/* The site's changes, waiting in the review bar: an outline tag in the site's hue that opens them. */
+/* The site's changes, waiting in the review bar: a neutral outline tag that opens them. The step
+   already shows its site once (pill and ribbon); colour is not repeated on navigation. */
 .step-pub {
   flex: none; display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px 0 6px;
-  border: 1px solid var(--site-line); border-radius: var(--radius); color: var(--site-ink);
+  border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--ink-2);
   font: 600 12px/1 var(--font-sans); white-space: nowrap; transition: background-color var(--t-fast) ease;
 }
 .step-pub > svg { width: 13px; height: 13px; }
-.step-pub:hover { text-decoration: none; background: var(--site-bg); }
+.step-pub:hover { text-decoration: none; background: var(--hover); color: var(--ink); }
 .step-pub.done { color: var(--muted); border-color: var(--line); }
 .step-pub.done > svg { color: var(--success); }
 
@@ -158,9 +159,10 @@
 .dl-op { text-align: center; color: var(--muted); user-select: none; }
 .dl-text { white-space: pre-wrap; color: var(--ink-2); min-width: 0; }
 .dl.add { background: var(--success-fill); }
-.dl.add .dl-op, .dl.add .dl-text { color: var(--success); }
+.dl.add .dl-op { color: var(--success); }
 .dl.del { background: var(--danger-fill); }
-.dl.del .dl-op, .dl.del .dl-text { color: var(--danger); }
+.dl.del .dl-op { color: var(--danger); }
+/* Diff text stays ink: the band and the sign carry the meaning (status text on a status band fails contrast). */
 .dl mark { color: inherit; border-radius: 2px; padding: 0 1px; }
 .dl.add mark { background: color-mix(in oklab, var(--success-solid) 26%, transparent); }
 .dl.del mark { background: color-mix(in oklab, var(--danger-solid) 22%, transparent); text-decoration: line-through; text-decoration-color: color-mix(in oklab, var(--danger) 50%, transparent); }

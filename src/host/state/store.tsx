@@ -9,7 +9,6 @@ import { FormError } from "../../form";
 import { discoverSite, type Site } from "../../protocol";
 import { BridgeCallError, BridgeClient } from "../bridge-client";
 import { capKey, hostOf, type Binding, type CapKey, type CapRef } from "../doc";
-import { snapHue } from "../hue";
 import { deriveModel, type Model } from "./model";
 import { initialState, reducer } from "./reducer";
 import type { Action, HostInfo, Receipt, State } from "./types";
@@ -193,7 +192,7 @@ function createStore(): Store {
     setHot: (cap) => {
       if (getState().hot !== cap) dispatch({ type: "ui/hot", cap });
     },
-    setHue: (origin, hue) => dispatch({ type: "site/hue", origin, hue: snapHue(hue) }),
+    setHue: (origin, hue) => dispatch({ type: "site/hue", origin, hue: Math.round(hue) % 360 }),
     attachBridge(site, frame) {
       const origin = site.site.origin;
       const client = new BridgeClient(site, frame, (id) => onSheet(origin, id !== null));

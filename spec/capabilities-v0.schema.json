@@ -15,7 +15,8 @@
       "properties": {
         "name": { "type": "string", "minLength": 1, "maxLength": 80 },
         "origin": { "type": "string", "pattern": "^https?://[^/]+$" },
-        "description": { "type": "string", "maxLength": 500 }
+        "description": { "type": "string", "maxLength": 500 },
+        "theme_color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "The site's brand colour, as in the Web App Manifest. The host takes its hue for the site's identity mark and may move it away from other sites' hues." }
       }
     },
     "bridge": { "type": "string", "pattern": "^/[^/]" },

@@ -1,5 +1,5 @@
 // The pure reducer for workspace state. Owner: foundation (shared).
-import { siteHue } from "../hue";
+import { hueOfColor, siteHue } from "../hue";
 import type { Action, State, Trace, TraceStage } from "./types";
 
 export const initialState: State = {
@@ -69,7 +69,8 @@ export function reducer(state: State, action: Action): State {
 
     case "site/added": {
       const origin = action.site.site.origin;
-      const hue = state.hues[origin] ?? siteHue(origin, Object.values(state.hues));
+      const others = Object.entries(state.hues).filter(([o]) => o !== origin).map(([, h]) => h);
+      const hue = state.hues[origin] ?? siteHue(origin, others, hueOfColor(action.site.site.theme_color));
       return {
         ...state,
         conns: [...state.conns, { key: action.key, site: action.site, status: "connecting" }],

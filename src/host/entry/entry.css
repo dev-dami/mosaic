@@ -77,17 +77,13 @@
 .sd-foot .btn { margin-bottom: 0; }
 .sd-checks { min-width: 0; }
 
-/* Hue picker: the strip shows every hue; reserved bands are hatched and skipped. */
+/* Hue picker: the strip shows every hue at the identity lightness. */
 .hue { display: flex; flex-direction: column; gap: 6px; }
 .hue-slider { position: relative; display: flex; align-items: center; height: 22px; touch-action: none; user-select: none; }
 .hue-track {
   position: relative; flex: 1; height: 12px; border-radius: 6px; overflow: hidden;
   background: linear-gradient(to right in oklch longer hue, oklch(0.7 0.13 0), oklch(0.7 0.13 359.9));
   box-shadow: inset 0 0 0 1px var(--line-bold);
-}
-.hue-reserved {
-  position: absolute; top: 0; bottom: 0;
-  background: repeating-linear-gradient(135deg, color-mix(in oklab, var(--surface) 88%, transparent) 0 3px, color-mix(in oklab, var(--surface) 55%, transparent) 3px 6px);
 }
 .hue-thumb {
   display: block; width: 20px; height: 20px; border-radius: 50%; cursor: grab;

@@ -14,7 +14,7 @@ export const docsSite: SiteDefinition = {
   name: "Pagewright",
   description: "A fictional documentation host. It previews and applies documentation updates for a project.",
   port: 4101,
-  look: { scheme: "light", accent: "#1d7a4e", font: "serif" },
+  look: { scheme: "light", accent: "#1f78d1", font: "serif" },
   capabilities: [
     {
       id: "preview-docs-update",

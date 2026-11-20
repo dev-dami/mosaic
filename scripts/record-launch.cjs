@@ -73,12 +73,12 @@ const OVERLAY = `
       background: #eeefe9; color: #151517; transition: opacity .5s ease; font-family: Nunito, system-ui, sans-serif; }
     #lv-card.off { opacity: 0; pointer-events: none; }
     #lv-card h1 { margin: 0; font: 800 112px/1 Nunito, system-ui, sans-serif; letter-spacing: -0.03em; }
-    #lv-card h1 span { color: #f54e00; }
+    #lv-card h1 span { color: #151517; }
     #lv-card p { margin: 0 auto; max-width: 900px; font: 400 38px/1.25 Newsreader, Georgia, serif; color: #3b3b3f; }
     #lv-card code { font: 600 18px/1 "Geist Mono", ui-monospace, monospace; color: #6b6b70; }
-    #lv-card .tiles { display: flex; gap: 10px; justify-content: center; margin-bottom: 8px; }
-    #lv-card .tiles i { width: 38px; height: 38px; border-radius: 9px; animation: lv-pop .5s cubic-bezier(.3,1.6,.5,1) both; }
-    @keyframes lv-pop { from { transform: scale(.2) rotate(-20deg); opacity: 0; } }
+    #lv-card .tiles { display: flex; justify-content: center; margin-bottom: 8px; }
+    #lv-card .logo .piece { transform-box: fill-box; transform-origin: center; animation: lv-drop .55s .7s cubic-bezier(.3,1.5,.5,1) both; }
+    @keyframes lv-drop { from { transform: translate(14px, -18px) rotate(25deg) scale(.6); opacity: 0; } }
   \`;
   document.documentElement.append(css);
   const cursor = document.createElement("div");
@@ -107,7 +107,8 @@ const OVERLAY = `
 })();
 `;
 
-const tiles = ["#f54e00", "#2f6fec", "#e8563a", "#3fb5c9", "#f7a501"].map((c, i) => `<i style="background:${c};animation-delay:${i * 90}ms"></i>`).join("");
+// The mark: four site tiles around the missing piece, which drops in on the card.
+const tiles = `<svg class="logo" viewBox="-1 -1 32 32" width="128" height="128"><rect width="19" height="8" rx="2.5" fill="#de4a87"/><rect x="22" width="8" height="19" rx="2.5" fill="#e7a226"/><rect x="11" y="22" width="19" height="8" rx="2.5" fill="#199d78"/><rect y="11" width="8" height="19" rx="2.5" fill="#8568dc"/><rect class="piece" x="11" y="11" width="8" height="8" rx="2.5" fill="#151517"/></svg>`;
 const host = (u) => new URL(u).host;
 
 async function main() {

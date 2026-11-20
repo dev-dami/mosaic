@@ -42,7 +42,7 @@ function TopBar() {
   return (
     <header className="topbar">
       <div className="brand">
-        <MosaicMark />
+        <MosaicMark complete={state.conns.length > 0} />
         <span>Mosaic</span>
       </div>
       <nav className="crumbs" aria-label="Location">
@@ -115,13 +115,19 @@ function ThemeSwitch() {
   return <Button variant="tertiary" size="sm" icon={icon} aria-label={`Theme: ${theme}. Switch to ${NEXT[theme]}`} title={`Theme: ${theme}`} onClick={() => setTheme(NEXT[theme])} />;
 }
 
-function MosaicMark() {
+/**
+ * The mark: four tiles in a pinwheel around an empty square. The tiles are sites; the square is the
+ * missing piece, Mosaic itself, and it drops into place once a site is connected.
+ */
+function MosaicMark({ complete }: { complete: boolean }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" className="mark">
-      <rect x="1" y="1" width="8" height="11" rx="2" />
-      <rect x="11" y="1" width="8" height="6" rx="2" />
-      <rect x="1" y="14" width="8" height="5" rx="2" />
-      <rect x="11" y="9" width="8" height="10" rx="2" />
+    <svg width="22" height="22" viewBox="0 0 30 30" aria-hidden="true" className={`mark ${complete ? "complete" : ""}`}>
+      <rect className="t1" x="0" y="0" width="19" height="8" rx="2.5" />
+      <rect className="t2" x="22" y="0" width="8" height="19" rx="2.5" />
+      <rect className="t3" x="11" y="22" width="19" height="8" rx="2.5" />
+      <rect className="t4" x="0" y="11" width="8" height="19" rx="2.5" />
+      <rect className="slot" x="11.75" y="11.75" width="6.5" height="6.5" rx="1.75" />
+      <rect className="piece" x="11" y="11" width="8" height="8" rx="2.5" />
     </svg>
   );
 }

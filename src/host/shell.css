@@ -7,9 +7,18 @@
   border-bottom: 1px solid var(--line);
 }
 .brand { display: flex; align-items: center; gap: 8px; font: 800 15px var(--font-title); letter-spacing: -0.01em; flex: none; }
-.brand .mark rect { fill: var(--ink); }
-.brand .mark rect:nth-child(2) { fill: var(--accent); }
-.brand .mark rect:nth-child(3) { opacity: 0.45; }
+/* The mark. Tile colours are the brand's and fixed; they sit at the identity lightness so both
+   themes show them the same. The piece is ink, Mosaic's own colour. */
+.mark { overflow: visible; }
+.mark .t1 { fill: oklch(0.63 0.19 359); }
+.mark .t2 { fill: oklch(0.76 0.15 76); }
+.mark .t3 { fill: oklch(0.62 0.12 168); }
+.mark .t4 { fill: oklch(0.6 0.17 292); }
+.mark .slot { fill: none; stroke: var(--line-strong); stroke-width: 1.5; stroke-dasharray: 2 1.6; }
+.mark .piece { fill: var(--ink); transform-box: fill-box; transform-origin: center; opacity: 0; transform: translate(5px, -6px) rotate(18deg) scale(0.7);
+  transition: transform 420ms cubic-bezier(0.3, 1.5, 0.5, 1), opacity 160ms ease; }
+.mark.complete .piece { opacity: 1; transform: none; }
+.mark.complete .slot { opacity: 0; }
 .crumbs { display: flex; gap: 8px; align-items: center; font-size: 13px; min-width: 0; margin-left: 12px; }
 .crumbs .sep { color: var(--faint); }
 .crumb-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-2); font-weight: 500; }

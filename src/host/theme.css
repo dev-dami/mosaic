@@ -1,9 +1,9 @@
 /* Mosaic theme: tokens for both schemes, base elements, shared keyframes.
    Owner: foundation (shared). Builders read these tokens; they do not redefine them.
-   Structure follows a warm-parchment product palette: warm neutrals in light, cool neutrals in dark,
-   exactly one accent (ultramarine, hue 268), status colours kept apart from the accent and from
-   site hues, a hard 3px ledge as the only elevation (modals excepted), and neutral alpha hovers.
-   See docs/design.md for the rules. */
+   Colour has two jobs only: who (a site's identity colour, always beside its name) and state
+   (success, warning, danger, always with an icon and a word). Everything else is neutral: warm
+   parchment in light, cool graphite in dark, ink for actions, links and focus. A hard 3px ledge is
+   the only elevation (modals excepted). See docs/design.md for the rules. */
 
 :root {
   color-scheme: light;
@@ -21,7 +21,7 @@
   --ink: #111;
   --ink-2: hsl(0 0% 25%);
   --muted: hsl(0 0% 40%);
-  --faint: rgb(17 17 17 / 45%);
+  --faint: rgb(17 17 17 / 62%);
   --trace: rgb(17 17 17 / 25%);
 
   /* Lines */
@@ -29,19 +29,18 @@
   --line-strong: hsl(69 8% 65%);
   --line-bold: rgb(0 0 0 / 24%);
 
-  /* Neutral interaction fills: never a tint of the accent */
+  /* Neutral interaction fills */
   --hover: color-mix(in oklab, #000 7.5%, transparent);
   --pressed: color-mix(in oklab, #000 5%, transparent);
   --ring: color-mix(in oklab, #000 7.5%, transparent);
 
-  /* The one accent */
-  --accent-h: 268;
-  --accent: oklch(0.52 0.2 var(--accent-h));
-  --accent-hover: oklch(0.6 0.2 var(--accent-h));
-  --accent-10: color-mix(in oklab, var(--accent) 10%, transparent);
-  --accent-20: color-mix(in oklab, var(--accent) 20%, transparent);
+  /* Actions, links, focus and selection are ink, not a hue: hues are kept for sites and status. */
+  --accent: var(--ink);
+  --accent-hover: hsl(0 0% 32%);
+  --accent-10: color-mix(in oklab, var(--ink) 6%, transparent);
+  --accent-20: color-mix(in oklab, var(--ink) 12%, transparent);
 
-  /* Status: never reused as the accent or as a site hue */
+  /* Status: success, warning, danger, info. Always with an icon and a word, never as decoration. */
   --success: oklch(0.527 0.154 150); --success-fill: oklch(0.962 0.044 157); --success-line: oklch(0.792 0.209 152); --success-solid: oklch(0.6 0.17 150);
   --warning: oklch(0.554 0.135 66);  --warning-fill: oklch(0.973 0.071 103); --warning-line: oklch(0.852 0.199 92);  --warning-solid: oklch(0.72 0.17 70);
   --danger:  oklch(0.577 0.245 27);  --danger-fill:  oklch(0.936 0.032 18);  --danger-line:  oklch(0.704 0.191 22);  --danger-solid: oklch(0.6 0.23 27);
@@ -50,9 +49,9 @@
   --mark: hsl(42 93% 86% / 80%);
 
   /* 3D buttons */
-  --btn1-face: oklch(0.55 0.2 var(--accent-h)); --btn1-ink: #fff;
-  --btn1-edge: oklch(0.4 0.17 var(--accent-h)); --btn1-edge-hover: oklch(0.33 0.15 var(--accent-h));
-  --btn1-ledge: oklch(0.36 0.15 var(--accent-h));
+  --btn1-face: hsl(240 5% 17%); --btn1-ink: #fff;
+  --btn1-edge: hsl(240 6% 6%); --btn1-edge-hover: #000;
+  --btn1-ledge: hsl(240 6% 5%);
   --btn2-face: var(--surface); --btn2-edge: hsl(78 13% 85%); --btn2-edge-hover: hsl(69 8% 65%); --btn2-ledge: #e1dddd;
   --btn-danger-edge: oklch(0.637 0.237 25); --btn-danger-ledge: color-mix(in oklab, var(--danger) 50%, transparent);
   --kbd-edge: #aaa;
@@ -83,18 +82,18 @@
     color-scheme: dark;
     --bg: hsl(240 8% 8%); --rail: hsl(240 8% 10%); --surface: hsl(235 8% 15%); --sunken: hsl(240 8% 10%); --sunken-2: #232429;
     --field: hsl(235 8% 15%); --overlay: rgb(0 0 0 / 45%);
-    --ink: hsl(0 0% 90%); --ink-2: hsl(0 0% 75%); --muted: hsl(0 0% 62%); --faint: rgb(255 255 255 / 42%); --trace: rgb(255 255 255 / 25%);
+    --ink: hsl(0 0% 90%); --ink-2: hsl(0 0% 75%); --muted: hsl(0 0% 62%); --faint: rgb(255 255 255 / 56%); --trace: rgb(255 255 255 / 25%);
     --line: hsl(230 8% 20%); --line-strong: hsl(230 8% 40%); --line-bold: rgb(255 255 255 / 20%);
     --hover: color-mix(in oklab, #fff 7.5%, transparent); --pressed: color-mix(in oklab, #fff 5%, transparent); --ring: color-mix(in oklab, #fff 10%, transparent);
-    --accent: oklch(0.72 0.14 var(--accent-h)); --accent-hover: oklch(0.8 0.12 var(--accent-h));
+    --accent-hover: hsl(0 0% 75%);
     --success: oklch(0.792 0.209 152); --success-fill: color-mix(in oklab, oklch(0.266 0.065 153) 50%, transparent); --success-line: oklch(0.393 0.095 153); --success-solid: oklch(0.72 0.17 152);
     --warning: oklch(0.852 0.199 92);  --warning-fill: oklch(0.286 0.066 54); --warning-line: oklch(0.421 0.095 58); --warning-solid: oklch(0.8 0.16 80);
     --danger:  oklch(0.704 0.191 22);  --danger-fill: color-mix(in oklab, oklch(0.258 0.092 26) 50%, transparent); --danger-line: oklch(0.396 0.141 26); --danger-solid: oklch(0.68 0.2 25);
     --info:    oklch(0.707 0.165 255); --info-fill: oklch(0.282 0.091 268); --info-line: oklch(0.379 0.146 266);
     --on-solid: #111;
-    --btn1-face: oklch(0.72 0.14 var(--accent-h)); --btn1-ink: #111;
-    --btn1-edge: oklch(0.5 0.16 var(--accent-h)); --btn1-edge-hover: oklch(0.6 0.16 var(--accent-h));
-    --btn1-ledge: oklch(0.42 0.13 var(--accent-h));
+    --btn1-face: hsl(60 8% 92%); --btn1-ink: #111;
+    --btn1-edge: hsl(60 3% 58%); --btn1-edge-hover: hsl(60 3% 70%);
+    --btn1-ledge: hsl(60 3% 46%);
     --btn2-face: hsl(235 8% 15%); --btn2-edge: hsl(230 8% 20%); --btn2-edge-hover: hsl(230 8% 40%); --btn2-ledge: #323232;
     --btn-danger-edge: #c44003;
     --kbd-edge: #5e6064;
@@ -105,27 +104,27 @@
   color-scheme: dark;
   --bg: hsl(240 8% 8%); --rail: hsl(240 8% 10%); --surface: hsl(235 8% 15%); --sunken: hsl(240 8% 10%); --sunken-2: #232429;
   --field: hsl(235 8% 15%); --overlay: rgb(0 0 0 / 45%);
-  --ink: hsl(0 0% 90%); --ink-2: hsl(0 0% 75%); --muted: hsl(0 0% 62%); --faint: rgb(255 255 255 / 42%); --trace: rgb(255 255 255 / 25%);
+  --ink: hsl(0 0% 90%); --ink-2: hsl(0 0% 75%); --muted: hsl(0 0% 62%); --faint: rgb(255 255 255 / 56%); --trace: rgb(255 255 255 / 25%);
   --line: hsl(230 8% 20%); --line-strong: hsl(230 8% 40%); --line-bold: rgb(255 255 255 / 20%);
   --hover: color-mix(in oklab, #fff 7.5%, transparent); --pressed: color-mix(in oklab, #fff 5%, transparent); --ring: color-mix(in oklab, #fff 10%, transparent);
-  --accent: oklch(0.72 0.14 var(--accent-h)); --accent-hover: oklch(0.8 0.12 var(--accent-h));
+  --accent-hover: hsl(0 0% 75%);
   --success: oklch(0.792 0.209 152); --success-fill: color-mix(in oklab, oklch(0.266 0.065 153) 50%, transparent); --success-line: oklch(0.393 0.095 153); --success-solid: oklch(0.72 0.17 152);
   --warning: oklch(0.852 0.199 92);  --warning-fill: oklch(0.286 0.066 54); --warning-line: oklch(0.421 0.095 58); --warning-solid: oklch(0.8 0.16 80);
   --danger:  oklch(0.704 0.191 22);  --danger-fill: color-mix(in oklab, oklch(0.258 0.092 26) 50%, transparent); --danger-line: oklch(0.396 0.141 26); --danger-solid: oklch(0.68 0.2 25);
   --info:    oklch(0.707 0.165 255); --info-fill: oklch(0.282 0.091 268); --info-line: oklch(0.379 0.146 266);
   --on-solid: #111;
-  --btn1-face: oklch(0.72 0.14 var(--accent-h)); --btn1-ink: #111;
-  --btn1-edge: oklch(0.5 0.16 var(--accent-h)); --btn1-edge-hover: oklch(0.6 0.16 var(--accent-h));
-  --btn1-ledge: oklch(0.42 0.13 var(--accent-h));
+  --btn1-face: hsl(60 8% 92%); --btn1-ink: #111;
+  --btn1-edge: hsl(60 3% 58%); --btn1-edge-hover: hsl(60 3% 70%);
+  --btn1-ledge: hsl(60 3% 46%);
   --btn2-face: hsl(235 8% 15%); --btn2-edge: hsl(230 8% 20%); --btn2-edge-hover: hsl(230 8% 40%); --btn2-ledge: #323232;
   --btn-danger-edge: #c44003;
   --kbd-edge: #5e6064;
   --tooltip-bg: hsl(0 0% 90%); --tooltip-ink: hsl(0 0% 5%);
 }
 
-/* Site hue tokens. Any element that sets --h (inline, from the host's hue assignment) gets its own
-   set. Hues come from src/host/hue.ts and stay inside 190-237 and 299-350, clear of red (27),
-   amber (66-92), green (150) and at least 30 degrees from the accent (268). */
+/* Site identity tokens. Any element that sets --h (inline, from the host's hue assignment) gets its
+   own set. The hue is the site's declared theme_color (src/host/hue.ts), kept apart from the other
+   connected sites; lightness and chroma are fixed per role here, so any hue meets contrast. */
 [style*="--h"] {
   --site-bg: oklch(0.95 0.035 var(--h));
   --site-ink: oklch(0.42 0.11 var(--h));
@@ -160,8 +159,10 @@ h2 { font-size: 1.3125rem; }
 h3 { font-size: 1rem; }
 b, strong { font-weight: 600; }
 button, input, textarea, select { font: inherit; color: inherit; }
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
+a { color: var(--ink); text-decoration: none; }
+/* Links in running text are ink with a quiet underline; links styled as chips or buttons carry a class. */
+a:not([class]) { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 0.2em; }
+a:not([class]):hover { text-decoration-color: currentColor; }
 code, pre { font-family: var(--font-mono); }
 mark { background: var(--mark); color: inherit; border-radius: 2px; }
 .dim { color: var(--faint); }

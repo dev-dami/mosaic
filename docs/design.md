@@ -59,24 +59,46 @@ All in `src/host/theme.css`, light on `:root`, dark under both `prefers-color-sc
 | Lines | hsl(78 13% 85%), hsl(69 8% 65%) | hsl(230 8% 20%), 40% | `--line`, `--line-strong` |
 | Hover / press fill | black 7.5% / 5% | white 7.5% / 5% | `--hover`, `--pressed` |
 | Focus ring on inputs | 3px black 7.5% | 3px white 10% | `--ring` |
-| Accent (one only) | oklch(0.52 0.2 268) ultramarine | oklch(0.72 0.14 268) | `--accent`, `--accent-10/20` |
+| Actions, links, focus, selection | ink: hsl(240 5% 17%) button, `--ink` text | pale ink: hsl(60 8% 92%) button | `--btn1-*`, `--accent` (= ink), `--accent-10/20` |
 
 **Status** is separate from the accent and from site hues: `--success*` (green 150), `--warning*`
 (amber 66-92), `--danger*` (red 27), `--info*`. Each has text, `-fill`, `-line` and `-solid`.
 
-**Site hues** come from `src/host/hue.ts`: the host hashes the origin into two bands, 190-237 and
-299-350, clear of success green and at least 30 degrees from the accent, so a site never looks like a
-primary button. The four band edges are tried first, so up to four sites stay 47 degrees or more apart;
-a fifth shares the bands (24 degrees or more). A hue picker snaps any choice back into
-the bands (`actions.setHue`). An element that sets `--h` gets `--site-bg`, `--site-ink`,
-`--site-line`, `--site-solid`, `--site-wire`. Site colour appears on provenance only (monogram, pill,
-token, left ribbon of a block, wire), never as a fill behind content.
+**Colour has two jobs.** *Who*: a site's identity colour. *State*: success, warning, danger, info.
+Everything else is neutral: parchment and graphite surfaces, and ink for actions, links, focus and
+selection. Mosaic's own colour is ink, the piece in the middle of its mark. This follows the 60-30-10 rule:
+neutrals carry the page, ink carries the actions, and hue is spent only on meaning.
+
+**Site identity colours** come from the site. Its manifest declares `site.theme_color` (as in the Web
+App Manifest), and `src/host/hue.ts` takes its OKLCH hue. When that hue is within 34 degrees of a site
+already connected, it moves the shortest way out, so a site cannot dress up as another one. A site
+that declares nothing gets one of eight slots, 45 degrees apart. Lightness and chroma are Mosaic's,
+fixed per role in `theme.css`, so any hue meets contrast. An element that sets `--h` gets `--site-bg`,
+`--site-ink`, `--site-line`, `--site-solid` and `--site-wire`. Site colour appears once per place, on
+provenance only (monogram, site pill, token, the left ribbon of a block, wire), never as a fill behind
+content and never repeated on navigation.
+
+**Identity and state are told apart by form, not by hue.** A site colour is always a mark beside the
+site's name. A status is always an icon and a word, on its own fill. A coral site can therefore sit
+beside a red error without being read as one.
+
+**Demo cast palette** (evenly spaced, at least 34 degrees apart): Reelhouse #d6407f (359), Loudhailer
+#e8563a (33), Foreman #c98a00 (76), Patchbay #0f9f7a (168), Inkpost #3fb5c9 (211), Pagewright #1f78d1
+(253), Tagforge #9b7bff (292).
+
+**The mark** (`MosaicMark` in `src/host/app.tsx`, `assets/logo.svg`): four tiles in a pinwheel around an
+empty square. The tiles are sites, in four of the cast's hues. The square is the missing piece, in ink,
+and it drops into place when the first site connects.
+
+**Contrast.** Body and secondary text meet 4.5:1 on every surface in both themes, `--faint` included
+(62% ink in light, 56% in dark). Diff lines keep ink text; only the band and the +/- sign carry status.
 
 **Shape and depth.** Radius 0.25 / 0.375 / 0.625rem. One elevation idiom: `--elev`, a hard 3px ledge
 in the line colour, no blur. Only the approval layer and tooltips use a soft shadow.
 
-**Never:** gradients as decoration, accent-tinted hovers, a second accent, a status colour used for
-decoration, a site hue in a status band.
+**Never:** gradients as decoration, a hue on an action, a status colour used for decoration, a status
+shown by colour alone, a site colour without the site's name beside it, text in a status colour on a
+status fill.
 
 ## 3. Type
 

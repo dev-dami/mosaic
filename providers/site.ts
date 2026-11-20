@@ -38,7 +38,7 @@ export function createSite(def: SiteDefinition, origin: string, allowedHosts: st
 
   const manifest: Manifest = {
     mosaic: "capabilities/0",
-    site: { name: def.name, origin, description: def.description },
+    site: { name: def.name, origin, description: def.description, theme_color: (def.look ?? DEFAULT_LOOK).accent },
     bridge: BRIDGE_PATH,
     capabilities: def.capabilities.map(({ run: _run, ...capability }) => capability),
   };
