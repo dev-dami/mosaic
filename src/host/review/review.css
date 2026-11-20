@@ -109,6 +109,7 @@
 .activity { position: relative; z-index: 1; margin-top: 48px; }
 .activity-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .activity-head h2 { margin: 0; }
+.act-model { margin-right: auto; margin-left: 12px; font: 12px var(--font-mono); color: var(--muted); }
 .act-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
 .act-table th {
   text-align: left; padding: 6px 8px; background: var(--sunken-2);

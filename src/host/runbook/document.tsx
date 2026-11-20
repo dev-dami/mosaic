@@ -5,6 +5,7 @@ import { domMax, LazyMotion, MotionConfig } from "motion/react";
 import { useRef, type ReactNode } from "react";
 import { useMosaic } from "../state";
 import { Step } from "./step";
+import { AgentRunbook } from "./turn";
 import { Wires } from "./wires";
 
 export type RunbookDocumentProps = {
@@ -26,6 +27,7 @@ export function RunbookDocument({ header, empty, footer }: RunbookDocumentProps)
           <div className="doc" ref={docRef}>
             <Wires container={docRef} />
             {header}
+            {state.turn && <AgentRunbook />}
             {state.conns.length === 0 && empty}
             {model.siteOrder.length > 0 && (
               <div className="steps">

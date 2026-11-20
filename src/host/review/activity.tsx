@@ -18,6 +18,11 @@ export function ActivityLog() {
     <section className="activity" aria-label="Activity">
       <header className="activity-head">
         <h2 className="label">Activity</h2>
+        {state.turn?.model && (
+          <span className="act-model" data-testid="activity-model">
+            Model: {state.turn.model.name} at {state.turn.model.routerHost}
+          </span>
+        )}
         {state.receipts.length > SHOWN && (
           <button type="button" className="link-btn" onClick={() => setAll((v) => !v)}>
             {all ? "Show latest" : `Show all ${state.receipts.length}`}

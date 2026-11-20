@@ -419,3 +419,9 @@
 .teach-fail { margin: 0; color: var(--danger); font-size: 12.5px; overflow-wrap: anywhere; }
 .connect-row.learned .socket-mini { border-style: dashed; }
 .item-host { font: 500 11.5px var(--font-mono); color: var(--muted); }
+
+/* ── Mode line: which mode runs the outcome, with a way to the AI model settings ── */
+.mode-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 12px; font-size: 13px; color: var(--muted); }
+.mode-line > svg { flex: none; color: var(--ink-2); }
+.mode-line b { color: var(--ink); font-weight: 600; }
+.mode-line .btn { margin-left: auto; }
