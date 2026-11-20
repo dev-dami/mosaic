@@ -13,5 +13,5 @@
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "providers", "test", "scripts"]
+  "include": ["src", "providers", "agent", "test", "scripts"]
 }

@@ -48,7 +48,8 @@ export type Trace = {
   buildSame?: boolean;
 };
 
-export type HostInfo = { build: string; suggestions: string[] };
+/** `agent` is Scout's origin, when this Mosaic has an agent for sites without a manifest. */
+export type HostInfo = { build: string; suggestions: string[]; agent?: string };
 
 export type State = {
   host: HostInfo | null;

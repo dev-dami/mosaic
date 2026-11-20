@@ -22,7 +22,7 @@ Needs [Bun](https://bun.sh) 1.4 or later. The end-to-end test also needs Node 24
 
 ```sh
 bun install
-bun run dev        # Mosaic on :4000, demo sites on :4101 to :4107
+bun run dev        # Mosaic on :4000, demo sites on :4101 to :4107, Scout on :4108, Corkboard on :4109
 ```
 
 Open http://localhost:4000 and connect `http://localhost:4101`, then `http://localhost:4102`, then
@@ -40,6 +40,8 @@ The demo sites, all fictional:
 | 4105 | Reelhouse | Videos: lists videos, reads comments, finds bug reports, replies to a comment. |
 | 4106 | Patchbay | Code issues: lists, previews and files issues. |
 | 4107 | Foreman | Agents on your own servers: plans a fix and sends an agent to make it. |
+| 4108 | Scout | Mosaic's agent. It learns sites that publish no manifest (see below). |
+| 4109 | Corkboard | A support forum with **no manifest**: plain HTML forms and tables. |
 
 Reelhouse, Patchbay, Foreman and Loudhailer tell one story: a bug report in the comments becomes an
 issue, an agent fixes it, a post goes out, and the commenter gets a reply. The click-by-click script is
@@ -47,9 +49,23 @@ in [docs/demo-script.md](docs/demo-script.md).
 
 ```sh
 bun run typecheck
-bun run test       # unit tests: form compiler, manifest parsing, site API guard
+bun run test       # unit tests: form compiler, manifest parsing, site API guard, Scout (needs Chromium)
 bun run e2e        # browser test of the whole flow (set CHROMIUM_PATH if needed, E2E_PORT_BASE to move ports)
 ```
+
+## Sites without a manifest: Scout
+
+Most sites will never publish a manifest. Paste one into Mosaic, for example Corkboard at
+`localhost:4109`, and the refusal offers **Teach Scout this site**. Scout opens the site in a headless
+browser, sees its forms, tables and lists, and writes a browser script for each thing the pages can do.
+It runs each read to check it, saves the scripts as a template, and serves them as a Mosaic site.
+Mosaic connects it like any other site, marked with a dashed **Scout** tag. Writes are approved on
+Scout's sheet, which says that the site did not publish them.
+
+Scout learns with Claude (`claude-opus-5-5`, it sees a screenshot and the page structure) when
+Claude credentials are set, and with simple rules otherwise. Templates are saved, listed in the
+palette, and can be exported and imported. **Copy recipe link** puts a whole workspace, with its
+templates, into one link that rebuilds it on any Mosaic. Details: [docs/agents.md](docs/agents.md).
 
 ## The workspace
 
@@ -98,6 +114,8 @@ The parts:
 | `providers/site.ts`, `providers/bridge.ts` | A small kit that makes any site Mosaic-compatible: manifest, bridge page, guarded API. |
 | `providers/{docs,releases,announcer,newsletter,videos,issues,agents}.ts` | Seven fictional demo sites (see the table under "Run it"). |
 | `src/host/doc.ts` | Runbook logic: markdown and diff models, the outcome sentence, field bindings. |
+| `agent/` | Scout: observe a site (`observe.ts`), learn skills by rules or with Claude (`learn-*.ts`), run step scripts (`skill.ts`), serve templates (`scout.ts`). |
+| `src/host/agent.tsx`, `src/host/recipe.ts` | The host side of Scout (teach, templates, the agent tag) and recipe links. |
 | `src/host/hue.ts` | Site hues: host-assigned from the origin, kept out of the red, amber, green and accent bands. |
 
 ### Security rules in the spike

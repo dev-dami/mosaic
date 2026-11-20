@@ -14,6 +14,7 @@ import { compileForm } from "../../form";
 import { capAnchor, outputFields, type CapRef } from "../doc";
 import { Banner, Button, Monogram, useHueStyle } from "../primitives";
 import { hasInputs, useMosaic } from "../state";
+import { AgentTag } from "../agent";
 import { SiteDetails } from "./details";
 import { fieldId, InputFields, InputSentence, needsPerson } from "./fields";
 import { flowHandlers } from "./flow";
@@ -58,6 +59,7 @@ export function Step({ origin, number }: { origin: string; number: number }) {
           )}
         </span>
         <h2 id={`step-${number}`}>{lead?.cap.title ?? name}</h2>
+        <AgentTag site={conn.site} compact />
         {fresh && <span className="new-pill">New</span>}
         {writes.length > 0 && (
           <a href={`#${capAnchor((pendingWrites[0] ?? writes[0]!).key)}`} className={`step-pub ${pendingWrites.length ? "" : "done"}`} title={`In the review bar: ${writes.map((w) => w.cap.title).join(", ")}`}>

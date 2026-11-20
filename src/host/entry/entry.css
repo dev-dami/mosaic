@@ -397,3 +397,25 @@
 @media (prefers-reduced-motion: reduce) {
   .arc.doing, .check.doing .check-mark, .source.fresh .mono-chip { animation: none; }
 }
+
+/* Scout: learning a site that publishes no manifest. Dashed = not published by the site. */
+.teach {
+  display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1.5px dashed var(--line-strong);
+  border-radius: var(--radius); background: var(--surface); font-size: 13px;
+}
+.teach-head { display: flex; gap: 10px; }
+.teach-icon { width: 22px; height: 22px; flex: none; color: var(--ink); }
+.teach.learning .teach-icon { animation: teach-look 1.1s ease-in-out infinite alternate; }
+@keyframes teach-look { from { transform: translateX(-2px) rotate(-6deg); } to { transform: translateX(2px) rotate(6deg); } }
+@media (prefers-reduced-motion: reduce) { .teach.learning .teach-icon { animation: none; } }
+.teach-head b { display: block; font: 800 15px var(--font-title); color: var(--ink); }
+.teach-head p { margin: 2px 0 0; color: var(--ink-2); }
+.teach > .btn { align-self: flex-start; }
+.teach-skills { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; }
+.teach-skills li { display: flex; flex-direction: column; padding: 7px 10px; border: 1px dashed var(--line-strong); border-radius: var(--radius); }
+.teach-skills li > span:first-child { font: 700 13px var(--font-title); }
+.teach-kind { font-size: 11.5px; color: var(--muted); }
+.teach-skills li.write .teach-kind { color: var(--warning); }
+.teach-fail { margin: 0; color: var(--danger); font-size: 12.5px; overflow-wrap: anywhere; }
+.connect-row.learned .socket-mini { border-style: dashed; }
+.item-host { font: 500 11.5px var(--font-mono); color: var(--muted); }

@@ -28,7 +28,8 @@ export function refusalOf(t: Trace): Refusal | null {
   if (/does not match capabilities/i.test(raw)) return { stage: "verify", headline: `${host}'s manifest isn't valid`, help: "It doesn't match the capabilities/0 format. The site needs to fix its manifest.", raw };
   if (/bridge must be/i.test(raw)) return { stage: "verify", headline: `${host} isn't allowed`, help: "Its manifest points the bridge at another origin. A bridge must live on the site's own origin.", raw };
   if (/HTTP \d+/.test(raw)) return { stage: "fetch", headline: `${host} has no manifest`, help: `Nothing at ${host}${MANIFEST_PATH} (${raw.match(/HTTP \d+/)![0]}). Check the URL and try again.`, raw };
-  return { stage: "fetch", headline: `Can't reach ${host}`, help: "Check the URL and try again.", raw };
+  // A browser hides why a cross-origin fetch failed: the site may be down, or it serves no manifest.
+  return { stage: "fetch", headline: `No manifest from ${host}`, help: "Mosaic couldn't read one there. The site may be down, or it publishes nothing for Mosaic. Check the URL and try again.", raw };
 }
 
 export function checkRows(t: Trace): CheckRow[] {

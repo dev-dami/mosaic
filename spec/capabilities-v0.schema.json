@@ -16,7 +16,18 @@
         "name": { "type": "string", "minLength": 1, "maxLength": 80 },
         "origin": { "type": "string", "pattern": "^https?://[^/]+$" },
         "description": { "type": "string", "maxLength": 500 },
-        "theme_color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "The site's brand colour, as in the Web App Manifest. The host takes its hue for the site's identity mark and may move it away from other sites' hues." }
+        "theme_color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "The site's brand colour, as in the Web App Manifest. The host takes its hue for the site's identity mark and may move it away from other sites' hues." },
+        "agent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "drives", "learned_by"],
+          "description": "Set when an agent, not the site, offers these capabilities: it learned them from the pages of `drives` and performs them there in a browser. The site at `drives` did not publish them. The host must show this, and approvals come from the agent's sheet.",
+          "properties": {
+            "name": { "type": "string", "minLength": 1, "maxLength": 40 },
+            "drives": { "type": "string", "pattern": "^https?://[^/]+$" },
+            "learned_by": { "type": "string", "maxLength": 80 }
+          }
+        }
       }
     },
     "bridge": { "type": "string", "pattern": "^/[^/]" },

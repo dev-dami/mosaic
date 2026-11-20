@@ -30,7 +30,14 @@ export type Capability = {
 
 export type Manifest = {
   mosaic: "capabilities/0";
-  site: { name: string; origin: string; description?: string; theme_color?: string };
+  site: {
+    name: string;
+    origin: string;
+    description?: string;
+    theme_color?: string;
+    /** Present when an agent performs these capabilities in a browser on `drives`, which did not publish them. */
+    agent?: { name: string; drives: string; learned_by: string };
+  };
   bridge: string;
   capabilities: Capability[];
 };

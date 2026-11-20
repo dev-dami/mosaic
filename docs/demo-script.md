@@ -104,8 +104,29 @@ Same setup. Type faster, skip Read comments and the hover.
 | 0:18 | Review, then **Send all 4 for approval**. Approve each sheet as it opens. They come in step order: the reply on Reelhouse, the issue on Patchbay, the agent on Foreman, the post on Loudhailer. | "Each site asks me itself." |
 | 0:27 | Hold on the finished runbook. | "The missing piece was always in front of us." |
 
+## Extra beat: the forum that publishes nothing (about 25 seconds)
+
+Record it after the main take, or as its own clip. Delete `.scout/` first, so that Scout learns the forum
+on camera.
+
+1. Press Ctrl K and paste `localhost:4109` (Corkboard, an old support forum). Press Enter. Mosaic refuses
+   it: there is no manifest.
+2. Click **Teach Scout this site**. The robot looks around while Scout opens the forum in a browser. After
+   about five seconds: "Scout learned 5 skills": Read threads, Search threads, Start a thread, Read
+   thread, Reply to a thread. Writes say "not run while learning".
+3. The palette connects it. Press Esc. The step has a dashed **Scout** tag.
+4. Type `1` in Thread id and click **Run**. The three posts about the Safari bug appear.
+5. Click **Review**. Thread id is already linked. Type a name and a reply, then click **Approve on
+   Corkboard**. The sheet is Scout's, and it says so: "Scout will do this in a browser on
+   localhost:4109. localhost:4109 did not publish this action." Approve.
+6. Open `localhost:4109/thread/1` in a tab: the reply is there.
+
+> "This forum never heard of Mosaic. Scout read it like I would, and now it's a piece too."
+
 ## If something looks off
 
 - A step says it is waiting for another step: run the steps top to bottom.
 - Project is empty: the outcome must name it with a capital letter, as in "in Mosaic".
 - Numbers higher than #43 or run-412: the servers kept state from an earlier take. Restart `bun run dev`.
+- Corkboard shows under "Learned by Scout" before you teach it: Scout kept the template from an earlier
+  take. Delete `.scout/` and restart.

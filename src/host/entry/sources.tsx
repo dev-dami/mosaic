@@ -11,6 +11,7 @@ import { capKey, hostOf } from "../doc";
 import { siteHue } from "../hue";
 import { Button, Disclosure, Kbd, Monogram, Origin, Tag, Tooltip, useHueStyle } from "../primitives";
 import { useMosaic, type Conn } from "../state";
+import { AgentTag } from "../agent";
 import { jumpTo } from "./palette";
 import { Checklist } from "./trace";
 import { entryUi, rememberName, rememberTrace, traceOf } from "./ui";
@@ -127,6 +128,7 @@ function SourceDetail({ conn }: { conn: Conn }) {
           {conn.status === "ready" ? "Ready" : conn.status === "failed" ? "Refused" : "Connecting"}
         </Tag>
       </header>
+      <AgentTag site={conn.site} />
       {conn.site.site.description && <p className="sd-desc">{conn.site.site.description}</p>}
       {conn.failure && <p className="sd-fail">{conn.failure}</p>}
       <div className="label">What it can do</div>

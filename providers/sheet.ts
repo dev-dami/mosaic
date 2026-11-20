@@ -49,7 +49,9 @@ function siteHeader(config: BridgeConfig): HTMLElement {
   const head = el("header", "site");
   const mark = el("div", "mark", (config.site.match(/[a-z0-9]/i)?.[0] ?? "?").toUpperCase());
   const who = el("div", "who");
-  who.append(el("div", "name", config.site), el("div", "tagline", "Prompt from this site"));
+  // An agent's sheet says whose prompt it is: the agent's, acting on a site that did not publish this.
+  const tagline = config.agent ? `${config.agent.name} · agent, not ${new URL(config.agent.drives).host}` : "Prompt from this site";
+  who.append(el("div", "name", config.site), el("div", "tagline", tagline));
   const pill = el("span", "origin-pill");
   pill.title = `This page is served by ${location.origin}`;
   pill.append(svg(LOCK), el("span", undefined, location.host));
@@ -174,7 +176,7 @@ export function renderPrompt(root: HTMLElement, config: BridgeConfig, hostOrigin
   const ask = el("div", "ask");
   const via = el("p", "via");
   via.append("Requested by ", el("b", undefined, new URL(hostOrigin).host), ". That page can't see or press this prompt.");
-  ask.append(el("div", "kicker", `Approve a change on ${config.site}`), el("h1", "verb", capability.title), via);
+  ask.append(el("div", "kicker", `Approve a change on ${config.agent ? new URL(config.agent.drives).host : config.site}`), el("h1", "verb", capability.title), via);
 
   const items = el("dl", "values");
   for (const [key, value] of Object.entries(values)) {
@@ -188,6 +190,14 @@ export function renderPrompt(root: HTMLElement, config: BridgeConfig, hostOrigin
 
   const consequence = el("p", "consequence");
   consequence.append(el("b", undefined, `This changes ${config.site}.`), ` ${capability.description}`);
+  const agentNote = config.agent ? el("p", "agent-note") : null;
+  if (config.agent && agentNote) {
+    const host = new URL(config.agent.drives).host;
+    agentNote.append(
+      el("b", undefined, `${config.agent.name} will do this in a browser on ${host}.`),
+      ` ${host} did not publish this action; ${config.agent.name} learned it from the site's pages. Approve only what you would do there yourself.`,
+    );
+  }
   const details = el("details");
   details.append(el("summary", undefined, "Show exact request"), el("pre", undefined, JSON.stringify(input, null, 2)));
 
@@ -205,7 +215,7 @@ export function renderPrompt(root: HTMLElement, config: BridgeConfig, hostOrigin
   approve.addEventListener("click", () => remember("approved"));
 
   const since = sinceNode(capability, values);
-  sheet.append(siteHeader(config), ask, ...(since ? [since] : []), items, consequence, details);
+  sheet.append(siteHeader(config), ask, ...(since ? [since] : []), items, ...(agentNote ? [agentNote] : []), consequence, details);
   const foot = el("div", "foot");
   foot.append(actions, note);
   root.replaceChildren(el("div", "bar"), sheet, foot);

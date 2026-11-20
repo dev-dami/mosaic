@@ -13,11 +13,16 @@ export type SiteDefinition = {
   description: string;
   port: number;
   look?: SiteLook;
+  /** Set when an agent performs these capabilities on another site that did not publish them. */
+  agent?: AgentInfo;
   capabilities: CapabilityImpl[];
 };
 
+export type AgentInfo = NonNullable<Manifest["site"]["agent"]>;
+
 export type BridgeConfig = {
   site: string;
+  agent?: AgentInfo;
   allowed_hosts: string[];
   look: SiteLook;
   capabilities: (Pick<Capability, "id" | "title" | "description" | "side_effects"> & { fields: Record<string, string> })[];
@@ -38,13 +43,14 @@ export function createSite(def: SiteDefinition, origin: string, allowedHosts: st
 
   const manifest: Manifest = {
     mosaic: "capabilities/0",
-    site: { name: def.name, origin, description: def.description, theme_color: (def.look ?? DEFAULT_LOOK).accent },
+    site: { name: def.name, origin, description: def.description, theme_color: (def.look ?? DEFAULT_LOOK).accent, ...(def.agent ? { agent: def.agent } : {}) },
     bridge: BRIDGE_PATH,
     capabilities: def.capabilities.map(({ run: _run, ...capability }) => capability),
   };
 
   const bridgeConfig: BridgeConfig = {
     site: def.name,
+    ...(def.agent ? { agent: def.agent } : {}),
     allowed_hosts: allowedHosts,
     look: def.look ?? DEFAULT_LOOK,
     capabilities: def.capabilities.map(({ id, title, description, side_effects, input_schema }) => ({
@@ -79,9 +85,9 @@ export function createSite(def: SiteDefinition, origin: string, allowedHosts: st
   return { manifest, bridgeConfig, handleApi, homePage, activity };
 }
 
-export function serveSite(def: SiteDefinition) {
-  const port = Number(process.env.PORT ?? def.port);
-  const origin = process.env.PUBLIC_ORIGIN ?? `http://localhost:${port}`;
+export function serveSite(def: SiteDefinition, at: { port?: number; origin?: string } = {}) {
+  const port = at.port ?? Number(process.env.PORT ?? def.port);
+  const origin = at.origin ?? process.env.PUBLIC_ORIGIN ?? `http://localhost:${port}`;
   const allowedHosts = (process.env.MOSAIC_HOSTS ?? "http://localhost:4000").split(",").map((s) => s.trim());
   const site = createSite(def, origin, allowedHosts);
 

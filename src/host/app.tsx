@@ -4,12 +4,13 @@
 import "./theme.css";
 import "./shell.css";
 import { CircleHalfIcon, IconContext, LockSimpleIcon, MoonIcon, SunIcon, WarningIcon } from "@phosphor-icons/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Button, Tooltip, TooltipProvider } from "./primitives";
 import { EntryEmpty, EntryOverlays, EntryTopbar, OutcomeHeader, SourcesRail } from "./entry";
 import { ActivityLog, ApprovalLayer, ReviewDock } from "./review";
 import { RunbookDocument } from "./runbook";
+import { applyRecipe, recipeFromHash } from "./recipe";
 import { MosaicProvider, useMosaic } from "./state";
 
 function App() {
@@ -30,11 +31,27 @@ function App() {
             <ReviewDock />
             <ApprovalLayer />
             <EntryOverlays />
+            <RecipeLoader />
           </div>
         </TooltipProvider>
       </IconContext.Provider>
     </MosaicProvider>
   );
+}
+
+/** Opening a recipe link rebuilds its workspace once this Mosaic's config has loaded. */
+function RecipeLoader() {
+  const { state, actions } = useMosaic();
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current || !state.host) return;
+    const recipe = recipeFromHash();
+    if (!recipe) return;
+    started.current = true;
+    history.replaceState(null, "", location.pathname);
+    void applyRecipe(recipe, actions, state.host.agent);
+  }, [state.host, actions]);
+  return null;
 }
 
 function TopBar() {

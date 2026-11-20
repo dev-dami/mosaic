@@ -17,12 +17,14 @@ async function sourceFingerprint(): Promise<string> {
 const build = await sourceFingerprint();
 // Optional site URLs to suggest on the empty page (the dev script passes the demo sites).
 const suggestions = (process.env.MOSAIC_SUGGEST ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+// Optional: Scout's origin. With it, a site that publishes no manifest can be learned instead of refused.
+const agent = process.env.MOSAIC_AGENT || undefined;
 
 Bun.serve({
   port,
   routes: {
     "/": homepage,
-    "/mosaic-host.json": () => Response.json({ build, suggestions }, { headers: { "cache-control": "no-store" } }),
+    "/mosaic-host.json": () => Response.json({ build, suggestions, agent }, { headers: { "cache-control": "no-store" } }),
   },
   development: process.env.NODE_ENV !== "production",
 });

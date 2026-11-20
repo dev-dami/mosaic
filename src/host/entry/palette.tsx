@@ -4,13 +4,15 @@
 // in red with what happened and what to do. Nothing here is faked: every row mirrors a stage the
 // store reported (state.trace).
 import NumberFlow from "@number-flow/react";
-import { ArrowRightIcon, CheckIcon, MagnifyingGlassIcon, PaperPlaneTiltIcon, PencilSimpleIcon, PlugIcon, PlusIcon, ProhibitIcon, TextAlignLeftIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, CheckIcon, LinkIcon, MagnifyingGlassIcon, PaperPlaneTiltIcon, PencilSimpleIcon, PlugIcon, PlusIcon, ProhibitIcon, RobotIcon, TextAlignLeftIcon } from "@phosphor-icons/react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Command } from "cmdk";
 import { MotionConfig, motion } from "motion/react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { tinykeys } from "tinykeys";
 import { MANIFEST_PATH } from "../../protocol";
+import { learnerName, scout, type Template } from "../agent";
+import { recipeLink } from "../recipe";
 import { capAnchor, hostOf, monogram, type CapRef } from "../doc";
 import { Button, Kbd, Monogram, Origin, Tag, useHueStyle } from "../primitives";
 import { openReview } from "../review";
@@ -82,6 +84,9 @@ export function Palette() {
   const urlOrigin = asOrigin(query);
   const trace = watching && state.trace?.origin === watching ? state.trace : null;
   const pendingSuggestions = (state.host?.suggestions ?? []).map((s) => asOrigin(s)).filter((o): o is string => !!o && !model.connFor(o));
+  const templates = useTemplates(open ? state.host?.agent : undefined);
+  const pendingTemplates = templates.filter((t) => !model.connFor(t.origin));
+  const [copied, setCopied] = useState(false);
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
@@ -143,7 +148,7 @@ export function Palette() {
             </div>
 
             {trace ? (
-              <ConnectView trace={trace} onGo={() => goToSite(trace.origin)} onReset={reset} />
+              <ConnectView trace={trace} onGo={() => goToSite(trace.origin)} onReset={reset} onConnect={connect} />
             ) : (
               <Command.List className="palette-list">
                 {urlOrigin && (
@@ -166,6 +171,13 @@ export function Palette() {
                       <Command.Group heading="Suggested sites">
                         {pendingSuggestions.map((o) => (
                           <ConnectRow key={o} origin={o} suggested onSelect={() => connect(o)} />
+                        ))}
+                      </Command.Group>
+                    )}
+                    {pendingTemplates.length > 0 && (
+                      <Command.Group heading="Learned by Scout">
+                        {pendingTemplates.map((t) => (
+                          <ConnectRow key={t.origin} origin={t.origin} template={t} onSelect={() => connect(t.origin)} />
                         ))}
                       </Command.Group>
                     )}
@@ -206,6 +218,26 @@ export function Palette() {
                           <span className="item-sub">The outcome picks and orders the steps</span>
                         </span>
                       </Command.Item>
+                      {state.conns.length > 0 && (
+                        <Command.Item
+                          value="copy recipe link"
+                          keywords={["Copy recipe link", "", "recipe share save template workspace link", ""]}
+                          onSelect={async () => {
+                            await navigator.clipboard.writeText(await recipeLink(state, state.host?.agent)).catch(() => {});
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 1600);
+                          }}
+                          className="palette-item"
+                        >
+                          <span className="item-icon">
+                            <LinkIcon />
+                          </span>
+                          <span className="item-main">
+                            <span className="item-title">{copied ? "Recipe link copied" : "Copy recipe link"}</span>
+                            <span className="item-sub">The outcome and its sites in one link. Opening it builds this workspace again, anywhere.</span>
+                          </span>
+                        </Command.Item>
+                      )}
                     </Command.Group>
                   </>
                 )}
@@ -257,18 +289,25 @@ function rank(value: string, search: string, keywords: string[] = []): number {
 }
 
 /** A "Connect <host>" row: a dashed socket waiting for the site. */
-function ConnectRow({ origin, suggested, onSelect }: { origin: string; suggested?: boolean; onSelect: () => void }) {
-  const host = hostOf(origin);
+function ConnectRow({ origin, suggested, template, onSelect }: { origin: string; suggested?: boolean; template?: Template; onSelect: () => void }) {
+  const host = template ? hostOf(template.target) : hostOf(origin);
   return (
-    <Command.Item value={`connect ${origin}`} keywords={[`connect ${host}`, "", "connect a site", host]} onSelect={onSelect} className="palette-item connect-row">
+    <Command.Item value={`connect ${origin}`} keywords={[`connect ${host} ${template?.name ?? ""}`, "", "connect a site learned template agent", host]} onSelect={onSelect} className={`palette-item connect-row ${template ? "learned" : ""}`}>
       <span className="socket-mini" aria-hidden="true">
-        <PlusIcon />
+        {template ? <RobotIcon /> : <PlusIcon />}
       </span>
       <span className="item-main">
         <span className="item-title">
-          Connect <b>{host}</b>
+          Connect <b>{template ? template.name : host}</b>
+          {template && <span className="item-host"> {host}</span>}
         </span>
-        <span className="item-sub">{suggested ? "Suggested by this Mosaic" : `Reads ${host}${MANIFEST_PATH}, then opens its bridge`}</span>
+        <span className="item-sub">
+          {template
+            ? `${template.skills.length} skills Scout learned (${learnerName(template.learned_by)}). ${host} did not publish them.`
+            : suggested
+              ? "Suggested by this Mosaic"
+              : `Reads ${host}${MANIFEST_PATH}, then opens its bridge`}
+        </span>
       </span>
       <Kbd keys={["enter"]} className="item-kbd" />
     </Command.Item>
@@ -312,8 +351,8 @@ function StepItem({ r, hidden, onSelect }: { r: CapRef; hidden: boolean; onSelec
 }
 
 /** The connect moment: ring of checks, then what the site brought, or a refusal in red. */
-function ConnectView({ trace, onGo, onReset }: { trace: Trace; onGo: () => void; onReset: () => void }) {
-  const { model, actions } = useMosaic();
+function ConnectView({ trace, onGo, onReset, onConnect }: { trace: Trace; onGo: () => void; onReset: () => void; onConnect: (origin: string) => void }) {
+  const { state, model, actions } = useMosaic();
   const hue = useHueStyle();
   const refusal = refusalOf(trace);
   const done = isDone(trace) && !refusal;
@@ -341,6 +380,7 @@ function ConnectView({ trace, onGo, onReset }: { trace: Trace; onGo: () => void;
           </div>
         </div>
       )}
+      {refusal?.stage === "fetch" && state.host?.agent && <TeachBox agent={state.host.agent} url={trace.origin} onLearned={onConnect} />}
       {done && conn && <Gain origin={trace.origin} />}
       <div className="connect-actions">
         {done && (
@@ -447,5 +487,72 @@ function Socket({ trace }: { trace: Trace }) {
         </motion.span>
       )}
     </span>
+  );
+}
+
+/** Scout's saved templates, read each time the palette opens. Empty without an agent. */
+function useTemplates(agent: string | undefined): Template[] {
+  const [list, setList] = useState<Template[]>([]);
+  useEffect(() => {
+    if (!agent) return;
+    let live = true;
+    scout.templates(agent).then((t) => live && setList(t), () => live && setList([]));
+    return () => {
+      live = false;
+    };
+  }, [agent]);
+  return list;
+}
+
+/**
+ * A site with no manifest: offer to have Scout learn it. Scout opens the site in a browser, turns its
+ * forms and tables into skills, runs the reads to check them, and serves the result on its own origin,
+ * which is then connected like any other site.
+ */
+function TeachBox({ agent, url, onLearned }: { agent: string; url: string; onLearned: (origin: string) => void }) {
+  const [phase, setPhase] = useState<{ kind: "idle" } | { kind: "learning" } | { kind: "learned"; t: Template } | { kind: "failed"; message: string }>({ kind: "idle" });
+  const host = hostOf(url);
+  const teach = async () => {
+    setPhase({ kind: "learning" });
+    try {
+      const t = await scout.learn(agent, url);
+      setPhase({ kind: "learned", t });
+      setTimeout(() => onLearned(t.origin), 1400);
+    } catch (e) {
+      setPhase({ kind: "failed", message: e instanceof Error ? e.message : String(e) });
+    }
+  };
+  return (
+    <section className={`teach ${phase.kind}`} aria-live="polite">
+      <div className="teach-head">
+        <RobotIcon weight="bold" className="teach-icon" aria-hidden="true" />
+        <div>
+          <b>{phase.kind === "learned" ? `Scout learned ${phase.t.skills.length} skills on ${host}` : `Scout can learn ${host}`}</b>
+          <p>
+            {phase.kind === "learning"
+              ? `Opening ${host} in a browser, reading its forms and tables, then trying each read…`
+              : phase.kind === "learned"
+                ? `Saved as a template (${learnerName(phase.t.learned_by)}). Connecting it now.`
+                : `It opens the site in a browser, writes a script for each thing its pages can do, and saves them as a template. ${host} won't have published them, so every change is approved on Scout's sheet.`}
+          </p>
+        </div>
+      </div>
+      {phase.kind === "learned" && (
+        <ul className="teach-skills">
+          {phase.t.skills.map((k) => (
+            <li key={k.title} className={k.side_effects}>
+              <span>{k.title}</span>
+              <span className="teach-kind">{k.side_effects === "write" ? "Changes the site · not run while learning" : k.verified ? "Read · tried, works" : "Read · needs input to try"}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {phase.kind === "failed" && <p className="teach-fail">{phase.message}</p>}
+      {(phase.kind === "idle" || phase.kind === "failed") && (
+        <Button variant="primary" icon={<RobotIcon />} onClick={teach}>
+          {phase.kind === "failed" ? "Try again" : "Teach Scout this site"}
+        </Button>
+      )}
+    </section>
   );
 }
