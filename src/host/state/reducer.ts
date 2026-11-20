@@ -1,6 +1,8 @@
 // The pure reducer for workspace state. Owner: foundation (shared).
 import { hueOfColor, siteHue } from "../hue";
-import type { Action, State, Trace, TraceStage } from "./types";
+import type { Action, ConnectStage, State, Trace, TraceStage } from "./types";
+
+const STAGES: ConnectStage[] = ["consent", "manifest", "network", "validate", "bridge", "build"];
 
 export const initialState: State = {
   host: null,
@@ -15,6 +17,7 @@ export const initialState: State = {
   bindings: {},
   receipts: [],
   confirming: null,
+  asking: null,
   sending: false,
   hues: {},
   fresh: [],
@@ -34,28 +37,29 @@ export function reducer(state: State, action: Action): State {
       return { ...state, host: action.info };
 
     case "connect/started":
-      return { ...state, connectError: null, trace: { origin: action.origin, stages: [{ stage: "fetch", state: "doing" }] } };
+      return { ...state, connectError: null, trace: { origin: action.origin, network: action.network, stages: [{ stage: "consent", state: "doing" }] } };
 
     case "connect/rejected":
       return { ...state, connectError: action.message };
 
-    case "connect/manifest-read": {
-      const { site } = action;
+    case "connect/stage":
+      return {
+        ...state,
+        trace: traceFor(state, action.origin, (t) => {
+          const i = STAGES.indexOf(action.stage);
+          return { ...t, ...action.patch, stages: [...STAGES.slice(0, i).map((stage) => ({ stage, state: "done" as const })), { stage: action.stage, state: "doing" }] };
+        }),
+      };
+
+    case "connect/choose":
       return {
         ...state,
         trace: traceFor(state, action.origin, (t) => ({
           ...t,
-          siteName: site.site.name,
-          capabilities: site.capabilities.length,
-          writes: site.capabilities.filter((c) => c.side_effects === "write").length,
-          stages: [
-            { stage: "fetch", state: "done" },
-            { stage: "verify", state: "done" },
-            { stage: "bridge", state: "doing" },
-          ],
+          choices: action.choices,
+          stages: settleLast(t.stages, { stage: "network", state: "failed", detail: `Publishes ${action.choices.length} networks: pick one` }),
         })),
       };
-    }
 
     case "connect/failed":
       return {
@@ -73,7 +77,7 @@ export function reducer(state: State, action: Action): State {
       const hue = state.hues[origin] ?? siteHue(origin, others, hueOfColor(action.site.site.theme_color));
       return {
         ...state,
-        conns: [...state.conns, { key: action.key, site: action.site, status: "connecting" }],
+        conns: [...state.conns.filter((c) => c.site.site.origin !== origin), { key: action.key, site: action.site, status: "connecting" }],
         hues: { ...state.hues, [origin]: hue },
         fresh: [...state.fresh.filter((o) => o !== origin), origin],
       };
@@ -141,13 +145,19 @@ export function reducer(state: State, action: Action): State {
       };
 
     case "run/failed":
-      return { ...state, runs: { ...state.runs, [action.cap]: { status: "error", message: action.message, denied: action.denied, at: action.at } } };
+      return {
+        ...state,
+        runs: { ...state.runs, [action.cap]: { status: "error", message: action.message, denied: action.denied, unknown: action.unknown, notStarted: action.notStarted, at: action.at } },
+      };
 
     case "receipt/added":
       return { ...state, receipts: [action.receipt, ...state.receipts].slice(0, 40) };
 
     case "approval/sheet":
-      return { ...state, confirming: action.origin };
+      return { ...state, confirming: action.origin, asking: action.origin ? null : state.asking };
+
+    case "approval/ask":
+      return { ...state, asking: action.origin };
 
     case "publish/sending":
       return { ...state, sending: action.sending };

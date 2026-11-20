@@ -41,7 +41,7 @@ export function Toasts() {
 
   // Flush once no site's sheet is up.
   useEffect(() => {
-    if (state.confirming) {
+    if (state.confirming || state.asking) {
       toast.dismiss();
       return;
     }
@@ -61,7 +61,7 @@ function Echo({ echo }: { echo: Echo }) {
         {ok ? <CheckIcon weight="bold" /> : echo.outcome === "denied" ? <ProhibitIcon weight="bold" /> : <WarningIcon weight="bold" />}
       </span>
       <div className="rv-toast-text">
-        <b>{ok ? `Published on ${name}` : echo.outcome === "denied" ? `Denied on ${name}` : `Didn't go through on ${name}`}</b>
+        <b>{ok ? `Published on ${name}` : echo.outcome === "denied" ? `Denied on ${name}` : echo.outcome === "unknown" ? `Outcome unknown on ${name}` : echo.outcome === "not_started" ? `Not started on ${name}` : `Didn't go through on ${name}`}</b>
         <Origin origin={echo.origin} />
         <span>
           {echo.title}

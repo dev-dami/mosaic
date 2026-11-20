@@ -3,6 +3,7 @@
 // remote-call budget, hides unbound link slots from the front agent, binds sites only by exact name,
 // and turns the runtime's trace into a typed stream. The model setup comes from the person's BYOK
 // profile; with no key Mosaic runs in manual mode and makes no model call at all.
+import type { ActionRegistry } from "./catalog";
 import { COMPOSER_AGENT, OTARI_ROUTER, SPARE_SLOTS } from "./network";
 
 export const RUNTIME_ENGINE_URL = "/runtime/engine.js";
@@ -71,6 +72,8 @@ export interface RuntimeEngine {
   trace: RuntimeTrace;
   history: unknown[];
   runtimeAllowedPeers: Set<string>;
+  /** The runtime's action registry: every connected site's bridge actions (agentic/catalog.ts). */
+  actions: ActionRegistry;
   onConsent: ((info: ConsentRequest) => Promise<ConsentDecision>) | null;
   onLinkRequired: ((info: { reference: string }) => Promise<string | null>) | null;
   loadTop(): Promise<{ network: RuntimeNetwork; validation: { errors: string[] } }>;
@@ -257,7 +260,7 @@ export class MosaicAgent {
    * fetch) → bind a slot (the site's own suggested slot, else a spare) → allow the origin → resolve
    * the exact name, which fails closed with "No published network named …". Undone on failure.
    */
-  async connectNetwork(rawUrl: string): Promise<BoundNetwork> {
+  async connectNetwork(rawUrl: string, opts: { consented?: boolean } = {}): Promise<BoundNetwork> {
     let parsed: URL;
     try {
       parsed = new URL(rawUrl.trim());
@@ -274,7 +277,8 @@ export class MosaicAgent {
     const existing = Object.entries(net.links).find(([, target]) => target === url);
     if (existing) return this.connected.find((b) => b.url === url) ?? { slot: existing[0], network: name, origin, url };
 
-    const decision = await this.engine.requestConsent({ kind: "connect", peerOrigin: parsed.host, peerLabel: name, requestText: `Connect ${name} at ${parsed.host}` });
+    // `consented`: the caller already asked, before its own first fetch (the connect palette does).
+    const decision = opts.consented ? "allow" : await this.engine.requestConsent({ kind: "connect", peerOrigin: parsed.host, peerLabel: name, requestText: `Connect ${name} at ${parsed.host}` });
     if (decision === "decline") throw new Error(`You declined to connect ${parsed.host}. Nothing was sent to it.`);
 
     const free = (ref: string) => net.linkSlots.has(ref) && !net.getLink(ref);

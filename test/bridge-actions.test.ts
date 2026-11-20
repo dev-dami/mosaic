@@ -152,8 +152,12 @@ describe("served bridge files", () => {
     expect(config.capabilities[0]!.input_schema).toEqual(docsSite.capabilities[0]!.input_schema);
   });
 
-  test("the old bridge/0 routes still answer until C7", async () => {
-    expect((await fetch(`${base}/.well-known/mosaic-capabilities.json`)).status).toBe(200);
-    expect((await fetch(`${base}/mosaic/bridge-config`)).status).toBe(200);
+  test("the retired well-known manifest and iframe bridge are gone", async () => {
+    // They fall through to the site's home page, which is HTML, not a manifest or a bridge config.
+    for (const path of ["/.well-known/mosaic-capabilities.json", "/mosaic/bridge", "/mosaic/bridge-config"]) {
+      const res = await fetch(`${base}${path}`);
+      expect(res.headers.get("content-type")).toContain("text/html");
+      expect(await res.text()).not.toContain('"capabilities"');
+    }
   });
 });

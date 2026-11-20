@@ -28,9 +28,8 @@ describe("site API", () => {
     expect(site.activity.map((a) => a.capability)).toEqual(["publish-release"]);
   });
 
-  test("the manifest omits the server-side run functions", () => {
+  test("the published files omit the server-side run functions", () => {
     const site = createSite(releasesSite, origin, []);
-    expect(site.manifest.capabilities.some((c) => "run" in c)).toBe(false);
-    expect(site.manifest.site.origin).toBe(origin);
+    expect(site.bridgeConfig.capabilities.some((c) => "run" in c)).toBe(false);
   });
 });

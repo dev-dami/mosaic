@@ -5,7 +5,7 @@
 // Trust: a learned site is not published by the site it drives. Everywhere it shows, it carries the
 // AgentTag, and its writes are approved on Scout's sheet, which says so.
 import { RobotIcon } from "@phosphor-icons/react";
-import type { Site } from "../protocol";
+import type { Site } from "./agentic/catalog";
 import { hostOf } from "./doc";
 
 /** A saved template, as Scout lists it. */

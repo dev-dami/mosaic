@@ -47,7 +47,8 @@ function definition(config: BridgeConfig, cap: CapabilityInfo, deps: ActionDeps)
   const common = {
     name: cap.id,
     description: cap.description,
-    inputSchema: cap.input_schema,
+    // The title rides in the schema's own "title", so a caller can name the step (catalog() has no title field).
+    inputSchema: { ...cap.input_schema, title: cap.title },
     availability: "bridge",
     callerOrigins: config.allowed_hosts,
   };
