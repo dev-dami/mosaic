@@ -300,6 +300,9 @@ function createStore(): Store {
       dispatch({ type: "connect/stage", origin, stage: "validate", patch: { network } });
       try {
         await a.connectNetwork(`${origin}/${network}`, { consented: true });
+        // A network the host already links returns at once from connectNetwork; resolving it (cached
+        // when connectNetwork just did) registers its bridge actions in the registry.
+        await a.engine.resolveRemote(`${origin}/${network}`, [], null);
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
         if (/action (bridge|catalog|protocol)|actions? (is|are) not exposed|callerOrigins/i.test(message)) dispatch({ type: "connect/stage", origin, stage: "bridge" });
