@@ -143,7 +143,11 @@ async function main() {
   assert.ok((await runbook.wires(page).count()) >= 2, "bound inputs are joined to their source by wires");
 
   await page.screenshot({ path: "e2e/last-run.png", fullPage: true });
-  console.log("e2e: all 11 checks passed");
+
+  // 12-16. AI model settings: BYOK profiles, the key stays out of the page and off every site, and a
+  //        turn runs on a local mock router (e2e/settings.e2e.cjs).
+  await require("./settings.e2e.cjs").settingsChecks({ browser, procs, base: BASE, sitePort: SITES.docs, screenshot: process.env.SETTINGS_SCREENSHOT });
+  console.log("e2e: all 16 checks passed");
 }
 
 main()
