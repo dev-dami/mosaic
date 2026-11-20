@@ -167,7 +167,7 @@ async function main() {
   await lv("caption", 2, "Connect three sites", `${host(urls.docs)} · ${host(urls.releases)} · ${host(urls.announcer)}`);
   // The first comes from the empty page's suggestions; after that they wait in the ⌘K palette.
   for (const [i, site] of [urls.releases, urls.docs, urls.announcer].entries()) {
-    if (i === 0) await glide(page.getByRole("button", { name: `Connect ${site}`, exact: true }));
+    if (i === 0) await glide(page.locator(".suggest-chip", { hasText: host(site) }));
     else {
       await page.keyboard.press("Control+K");
       await glide(page.locator(".palette .connect-row", { hasText: host(site) }));
