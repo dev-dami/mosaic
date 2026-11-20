@@ -185,6 +185,7 @@ async function agentChecks({ browser, procs, base, screenshot }) {
     await turn.locator(".agent-summary").getByText(FINAL).waitFor();
     // The dock's card and the activity log keep the receipt.
     await page.locator(".act-table tr.write.done").getByText("Publish release").waitFor();
+    assert.equal(await page.getByTestId("activity-model").innerText(), `Model: mock-model-1 at localhost:${routerPort}`, "the activity log names the router host");
     const home = await (await fetch(`http://localhost:${releasesPort}/`)).text();
     assert.ok(home.includes("publish-release"), "the approved write reached the site");
     // The key reached only the router.
