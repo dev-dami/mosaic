@@ -2,6 +2,7 @@
 // lists and headings with a CSS selector for each, plus a screenshot of the first page. Both
 // learners (heuristic and model) work from this, never from raw HTML.
 import type { Browser, Page } from "playwright-core";
+import { fencedPage } from "./targets";
 
 export type FieldSnap = { name: string; selector: string; label: string; type: string; required: boolean; value: string };
 export type FormSnap = {
@@ -106,8 +107,8 @@ function siteName(titles: string[], origin: string): string {
 /** Visit up to `maxPages` same-origin pages, one per kind of path, starting at `start`. */
 export async function observe(browser: Browser, start: string, maxPages = 8): Promise<Observation> {
   const origin = new URL(start).origin;
-  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-  const page = await context.newPage();
+  // Every request, redirect hops included, must stay on the start page's origin.
+  const { context, page } = await fencedPage(browser, origin, { width: 1280, height: 800 });
   page.setDefaultTimeout(8_000);
   const pages: PageSnap[] = [];
   const seen = new Set<string>();

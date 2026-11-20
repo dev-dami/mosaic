@@ -9,6 +9,7 @@
 import type { Browser, Page } from "playwright-core";
 import type { SiteDefinition } from "../providers/site";
 import type { Capability, JsonSchema } from "../src/protocol";
+import { fencedPage } from "./targets";
 
 export type StepOp = "goto" | "fill" | "check" | "click" | "extract";
 export type ExtractKind = "text" | "list" | "table" | "url";
@@ -149,8 +150,8 @@ async function readTable(page: Page, s: Step): Promise<Record<string, string>[] 
  */
 export async function runSkill(browser: Browser, origin: string, skill: Skill, rawInput: unknown): Promise<Record<string, unknown>> {
   const input = (rawInput && typeof rawInput === "object" ? rawInput : {}) as Record<string, unknown>;
-  const context = await browser.newContext();
-  const page = await context.newPage();
+  // The fence fails any request to another origin before it is sent, redirect hops included.
+  const { context, page } = await fencedPage(browser, origin);
   page.setDefaultTimeout(STEP_TIMEOUT_MS);
   const output: Record<string, unknown> = {};
   const stayHome = () => {
