@@ -115,7 +115,7 @@ export function routerHostOf(setup: Partial<ModelSetup>): string {
   try {
     return new URL(setup.router || OTARI_ROUTER).host;
   } catch {
-    return setup.router;
+    return setup.router ?? "";
   }
 }
 
