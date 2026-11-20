@@ -144,7 +144,10 @@ describe("Scout, rules learner", () => {
   test("a script cannot leave the site it drives", async () => {
     const escape: Skill = { ...byId("read-threads"), steps: [{ op: "goto", url: "https://example.com/", selector: "", value: "", field: "", kind: "", columns: [] }] };
     await expect(runSkill(browser, origin, escape, {})).rejects.toThrow(/outside/);
-  });
+    // Refused before any browser context opens: a browser that cannot open one is never asked.
+    const noBrowser = { newContext: () => Promise.reject(new Error("opened a context")) } as unknown as Browser;
+    await expect(runSkill(noBrowser, origin, escape, {})).rejects.toThrow(/step 1 \(goto https:\/\/example.com\/\) failed: goto https:\/\/example.com is outside/);
+  }, 20_000);
 });
 
 describe("a Scout-served template conforms to MVP profile 0.3", () => {
