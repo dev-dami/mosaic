@@ -132,9 +132,19 @@ A learned site is not published by the site that it drives. Mosaic shows this in
   do this in a browser on localhost:4109. localhost:4109 did not publish this action". The 700 ms
   Approve delay and the host allow list work as they do for any site.
 - Scout accepts calls only from its Mosaic hosts (`MOSAIC_HOSTS`, checked on the Origin header). The
-  bridge accepts callers from the same list.
-- `shortcut:` Scout learns any http(s) target, also private addresses, because the demo sites are on
-  localhost. Before Scout runs on a shared server, add an allow list of targets.
+  bridge accepts callers from the same list. Only browsers enforce the Origin header, and curl can
+  forge it, so the target rule below is what keeps a public Scout safe, not the host list.
+- Scout opens only the origins in `SCOUT_TARGETS` (comma list, exact origin match). Without it,
+  Scout opens loopback only (`localhost`, `127.0.0.1`, `[::1]`, any port), so `bun run dev` works.
+  Scout refuses other schemes. It checks the rule on `POST /learn`, on `POST /templates` (the
+  adapter's target), and on every saved template at start. A refusal is a 403 with the rule in
+  `error`. In the browser, every request from `observe` and from a skill run goes through a fence:
+  CDP `Fetch` pauses it before it is sent, redirect hops included, and fails it unless it is on the
+  target's origin. Service workers are blocked and popups closed.
+- Limits for a public Scout: request bodies up to 256 KB (413), one learn at a time (429), and at
+  most `SCOUT_MAX_ADAPTERS` (default 20) served adapters; the oldest is unloaded, its file kept.
+  `SCOUT_ADAPTER_ORIGIN` (for example `https://scout-{port}.203-0-113-10.sslip.io`) gives each
+  adapter a public origin. `deploy/Caddyfile` and `deploy/scout.env.example` put Scout behind Caddy.
 - `shortcut:` Scout drives each site with no cookies, so it cannot act inside a person's account.
   Signed-in sites need a per-person browser profile, which is not built.
 
