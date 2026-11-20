@@ -71,18 +71,19 @@ type Store = {
 function createStore(): Store {
   let state = initialState;
   const listeners = new Set<() => void>();
-  // State changes at once; React hears about it once per task. A streamed answer dispatches a
-  // delta per token, and a render per delta inside one task passed React's nested-update limit
-  // (it threw "Maximum update depth exceeded" mid-turn). Batching per microtask was not enough.
-  let notifying = false;
+  // A streamed answer dispatches a turn event per token. Rendering each one inside one task passed
+  // React's nested-update limit ("Maximum update depth exceeded" mid-turn), so turn events reach
+  // React once per task. Every other action renders at once: controlled inputs need that.
+  let pending: ReturnType<typeof setTimeout> | null = null;
+  const notify = () => {
+    if (pending) clearTimeout(pending);
+    pending = null;
+    listeners.forEach((l) => l());
+  };
   const dispatch = (a: Action) => {
     state = reducer(state, a);
-    if (notifying) return;
-    notifying = true;
-    setTimeout(() => {
-      notifying = false;
-      listeners.forEach((l) => l());
-    }, 0);
+    if (a.type === "turn/event" || a.type === "turn/trace") pending ??= setTimeout(notify, 0);
+    else notify();
   };
   const getState = () => state;
   let nextKey = 1;
