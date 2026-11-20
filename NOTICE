@@ -1,0 +1,8 @@
+Mosaic
+Copyright 2026 The Mosaic contributors
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product includes the nsdeploy browser runtime from the agentic-web project
+(github.com/cognizant-ai-labs/agentic-web, skills/agentify-website/runtime),
+licensed under the Apache License, Version 2.0. See vendor/nsdeploy-runtime/VENDOR.md.

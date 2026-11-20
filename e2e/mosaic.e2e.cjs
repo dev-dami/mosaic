@@ -241,12 +241,14 @@ async function main() {
   //        turn runs on a local mock router (e2e/settings.e2e.cjs).
   await context.close();
   await require("./settings.e2e.cjs").settingsChecks({ browser, procs, base: BASE, sitePort: SITES.releases, screenshot: process.env.SETTINGS_SCREENSHOT });
+  // 19-22. Recipes: copy a two-site workspace as a link and rebuild it in a fresh context (e2e/recipe.e2e.cjs).
+  await require("./recipe.e2e.cjs").recipeChecks({ browser, procs, base: BASE });
 
-  // 19-22. The agent turn: the outcome runs as one turn of Mosaic's own agent network across the
+  // 23-29. The agent turn: the outcome runs as one turn of Mosaic's own agent network across the
   //        connected sites, shown as Mosaic's runbook; writes still wait for the site's own sheet;
   //        Stop and runtime errors are visible; no key keeps the manual plan (e2e/agent.e2e.cjs).
   await require("./agent.e2e.cjs").agentChecks({ browser, procs, base: BASE, screenshot: process.env.C9_SCREENSHOT });
-  console.log("e2e: all 25 checks passed");
+  console.log("e2e: all 29 checks passed");
 }
 
 main()

@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun scripts/dev.ts",
+    "build:deploy": "bun scripts/build-deploy.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test test",
     "e2e": "node e2e/mosaic.e2e.cjs",
@@ -38,5 +39,6 @@
     "@types/react-dom": "^19.3.0",
     "playwright-core": "^1.65.1",
     "typescript": "^7.0.2"
-  }
+  },
+  "license": "Apache-2.0"
 }
