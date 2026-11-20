@@ -3,8 +3,8 @@
 // remote-call budget, hides unbound link slots from the front agent, binds sites only by exact name,
 // and turns the runtime's trace into a typed stream. The model setup comes from the person's BYOK
 // profile; with no key Mosaic runs in manual mode and makes no model call at all.
-import type { ActionRegistry } from "./catalog";
-import { COMPOSER_AGENT, OTARI_ROUTER, SPARE_SLOTS } from "./network";
+import type { ActionReceipt, ActionRegistry, RegistryEntry } from "./catalog";
+import { COMPOSER_AGENT, DEFAULT_MODEL, OTARI_ROUTER, SPARE_SLOTS } from "./network";
 
 export const RUNTIME_ENGINE_URL = "/runtime/engine.js";
 /** What Mosaic allows per turn. The demo chain needs five or more peer calls. */
@@ -126,6 +126,20 @@ export function routerHostOf(setup: Partial<ModelSetup>): string {
 
 // ---- The engine class ----------------------------------------------------------------------------
 
+/** The composition object runTurn shares across every hop of one turn (engine.js runTurn). */
+export interface TurnBudget {
+  maxRemoteCalls: number;
+  maxAgentCalls: number;
+  deadline: number;
+}
+
+/** One action the registry ran, as Mosaic's store sees it (agentic/catalog.ts). */
+export interface ActionRun {
+  invocationId: string;
+  entries: RegistryEntry[];
+  args: unknown[];
+}
+
 const classes = new WeakMap<RuntimeModule["Engine"], RuntimeModule["Engine"]>();
 
 /**
@@ -140,10 +154,13 @@ export function makeMosaicEngineClass(Engine: RuntimeModule["Engine"]): RuntimeM
     throw new Error("The nsdeploy runtime has no Engine._makeCtx; Mosaic's remote-call budget needs it. Check vendor/nsdeploy-runtime.");
   }
   class MosaicEngine extends (Engine as new (opts: EngineOptions) => RuntimeEngine) {
-    _makeCtx(args: { composition?: { maxRemoteCalls: number } }) {
-      if (args?.composition && args.composition.maxRemoteCalls < MAX_REMOTE_CALLS) {
+    /** The running turn's shared budget (see MosaicAgent.stopTurn). */
+    mosaicComposition: TurnBudget | null = null;
+    _makeCtx(args: { composition?: TurnBudget; isTop?: boolean }) {
+      if (args?.composition && args.composition.deadline !== 0 && args.composition.maxRemoteCalls < MAX_REMOTE_CALLS) {
         args.composition.maxRemoteCalls = MAX_REMOTE_CALLS;
       }
+      if (args?.isTop && args.composition) this.mosaicComposition = args.composition;
       return super._makeCtx(args);
     }
   }
@@ -185,6 +202,8 @@ export interface BoundNetwork {
 export class MosaicAgent {
   readonly mode: "model" | "manual";
   readonly routerHost: string;
+  /** The model the front agent runs on (the profile's, else the network's published default). */
+  readonly modelName: string;
   /** Networks bound by connectNetwork, kept across rebuilds. */
   readonly connected: BoundNetwork[] = [];
   private readonly frontToolsAll: string[];
@@ -195,6 +214,7 @@ export class MosaicAgent {
   ) {
     this.mode = options.setup.key ? "model" : "manual";
     this.routerHost = routerHostOf(this.mode === "model" ? options.setup : { router: "" });
+    this.modelName = (this.mode === "model" && options.setup.model) || DEFAULT_MODEL;
     const spec = this.frontSpec();
     this.frontToolsAll = (spec?.tools ?? []).filter((t): t is string => typeof t === "string");
   }
@@ -212,8 +232,52 @@ export class MosaicAgent {
     const { validation } = await engine.loadTop();
     if (validation.errors.length) throw new Error(`Mosaic's network failed validation: ${validation.errors.join("; ")}`);
     const agent = new MosaicAgent(engine, options);
+    agent.watchRegistry();
     agent.prune();
     return agent;
+  }
+
+  private readonly actionWatchers = new Set<{ start?: (run: ActionRun) => void; end?: (run: ActionRun, receipts: ActionReceipt[] | null) => void }>();
+
+  /**
+   * Every action the registry runs, the model's website_* calls included, passes through here, so
+   * the runbook can show its full output and the ledger can keep its receipt. Wraps the registry's
+   * execute on this engine instance only; the runtime itself is not changed.
+   */
+  private watchRegistry() {
+    const registry = this.engine.actions;
+    const execute = registry.execute.bind(registry);
+    registry.execute = async (plan, confirm, invocationId) => {
+      const run: ActionRun = { invocationId, entries: plan.map((p) => p.entry), args: plan.map((p) => p.args) };
+      for (const w of this.actionWatchers) w.start?.(run);
+      let receipts: ActionReceipt[] | null = null;
+      try {
+        receipts = await execute(plan, confirm, invocationId);
+        return receipts;
+      } finally {
+        for (const w of this.actionWatchers) w.end?.(run, receipts);
+      }
+    };
+  }
+
+  /** Listen to the registry's runs. Returns the unsubscribe function. */
+  watchActions(watcher: { start?: (run: ActionRun) => void; end?: (run: ActionRun, receipts: ActionReceipt[] | null) => void }): () => void {
+    this.actionWatchers.add(watcher);
+    return () => this.actionWatchers.delete(watcher);
+  }
+
+  /**
+   * Stops the running turn as far as the runtime allows without changing it: the turn's shared
+   * budget is spent and its deadline passed, so no further agent, peer network or model step starts
+   * (runner.js consumeAgentBudget / consumeRemoteBudget). A step already in flight finishes; the
+   * store refuses any write window it asks for.
+   */
+  stopTurn(): void {
+    const budget = (this.engine as RuntimeEngine & { mosaicComposition?: TurnBudget | null }).mosaicComposition;
+    if (!budget) return;
+    budget.deadline = 0;
+    budget.maxRemoteCalls = 0;
+    budget.maxAgentCalls = 0;
   }
 
   /** A new agent on another model setup, with the same runtime-connected networks. */

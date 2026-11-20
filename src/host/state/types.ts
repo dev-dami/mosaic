@@ -3,6 +3,8 @@
 // is open, a drawer that is expanded) stays inside the area's own components.
 import type { FormValues } from "../../form";
 import type { Site } from "../agentic/catalog";
+import type { TraceEvent, TurnEvent } from "../agentic/engine";
+import type { AgentTurn } from "../agentic/turn";
 import type { Binding, CapKey } from "../doc";
 
 export type ConnStatus = "connecting" | "ready";
@@ -101,6 +103,8 @@ export type State = {
   hot: CapKey | null;
   /** The capability whose output just changed, to animate its wires. */
   pulse: { cap: CapKey; at: number } | null;
+  /** The latest agent turn (model mode): Mosaic's own network running the outcome. */
+  turn: AgentTurn | null;
 };
 
 export type Action =
@@ -130,4 +134,9 @@ export type Action =
   | { type: "approval/blocked" }
   | { type: "write/active"; cap: CapKey | null }
   | { type: "publish/sending"; sending: boolean }
-  | { type: "ui/hot"; cap: CapKey | null };
+  | { type: "ui/hot"; cap: CapKey | null }
+  | { type: "turn/started"; outcome: string }
+  | { type: "turn/trace"; event: TraceEvent }
+  | { type: "turn/event"; event: TurnEvent }
+  | { type: "turn/stopped" }
+  | { type: "turn/failed"; message: string };

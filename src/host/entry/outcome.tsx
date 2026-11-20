@@ -2,12 +2,13 @@
 // Version are read from it (and can be typed over); the plan line under it shows which steps the
 // outcome picked, in order, and why. Picking is deterministic keyword matching (plan.ts).
 import NumberFlow from "@number-flow/react";
-import { PencilSimpleIcon, PlugIcon } from "@phosphor-icons/react";
+import { CpuIcon, PencilSimpleIcon, PlayIcon, PlugIcon, StopIcon } from "@phosphor-icons/react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { parseOutcome } from "../doc";
-import { Kbd, Monogram, Tooltip, useHueStyle } from "../primitives";
+import { Button, Kbd, Monogram, Tooltip, useHueStyle } from "../primitives";
+import { ModelSettings, useAgentEngine } from "../settings";
 import { useMosaic } from "../state";
 import { jumpTo } from "./palette";
 import { analyzeOutcome } from "./plan";
@@ -20,6 +21,7 @@ const STARTERS = ["Launch Lumen v1.0", "Update the docs for v2.1", "Announce Atl
 export function OutcomeHeader() {
   const { state, model, actions } = useMosaic();
   const { focusOutcome } = useEntryUi();
+  const engine = useAgentEngine();
   const box = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (!focusOutcome) return;
@@ -47,7 +49,11 @@ export function OutcomeHeader() {
             if (e.key !== "Enter") return;
             e.preventDefault();
             if (state.conns.length === 0) entryUi.openPalette();
-            else e.currentTarget.blur();
+            else {
+              e.currentTarget.blur();
+              // Model mode: the outcome runs as one turn of Mosaic's agent network.
+              if (engine.mode === "model") void actions.runOutcome();
+            }
           }}
         />
         <span className="outcome-pencil" aria-hidden="true">
@@ -69,8 +75,49 @@ export function OutcomeHeader() {
         </span>
         )}
       </div>
+      <ModeLine />
       {state.conns.length > 0 && <PlanLine />}
     </header>
+  );
+}
+
+/**
+ * Which mode runs the outcome. Model mode: Mosaic's own agent network plans and runs it on the
+ * person's model. Manual mode (no key): the keyword plan below is the runbook, with no model call.
+ */
+function ModeLine() {
+  const { state, actions } = useMosaic();
+  const engine = useAgentEngine();
+  const [settings, setSettings] = useState(false);
+  const running = state.turn?.status === "running";
+  const model = engine.agent?.mode === "model" ? engine.agent.modelName : null;
+  return (
+    <div className={`mode-line ${engine.mode}`} data-mode={engine.mode}>
+      <CpuIcon aria-hidden="true" />
+      {engine.mode === "model" ? (
+        <span>
+          <b>Model mode.</b> Mosaic's agent runs this outcome across your sites{model ? ` on ${model} at ${engine.routerHost}` : ""}. Every change still waits for the site's own approval.
+        </span>
+      ) : (
+        <span>
+          <b>Manual mode.</b> No key, so Mosaic plans the steps by keyword with no model.
+        </span>
+      )}
+      <button type="button" className="link-btn" onClick={() => setSettings(true)}>
+        AI model settings
+      </button>
+      {engine.mode === "model" &&
+        (running ? (
+          <Button variant="secondary" size="sm" icon={<StopIcon />} onClick={actions.stopTurn}>
+            Stop
+          </Button>
+        ) : (
+          <Button variant="primary" size="sm" icon={<PlayIcon />} disabledReason={!state.title.trim() ? "Type an outcome first" : engine.status !== "ready" ? "The agent is still loading" : null} onClick={() => void actions.runOutcome()}>
+            Run with the agent
+          </Button>
+        ))}
+      <ModelSettings open={settings} onOpenChange={setSettings} />
+    </div>
   );
 }
 

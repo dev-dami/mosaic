@@ -8,8 +8,8 @@
 // window on the site's origin, where the site's own sheet asks the person. Mosaic never approves.
 import { createContext, useContext, useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { FormError } from "../../form";
-import { connectTarget, outcomeOf, pickNetwork, siteFromEntries, type PublishedManifest, type Site } from "../agentic/catalog";
-import type { MosaicAgent } from "../agentic/engine";
+import { connectTarget, outcomeOf, pickNetwork, siteFromEntries, type ActionReceipt, type PublishedManifest, type Site } from "../agentic/catalog";
+import type { ActionRun, MosaicAgent } from "../agentic/engine";
 import { hostOf, type Binding, type CapKey, type CapRef, capKey } from "../doc";
 import { useAgentEngine } from "../settings";
 import { deriveModel, inputKeys, type Model } from "./model";
@@ -49,6 +49,15 @@ export type Actions = {
   setHot: (cap: CapKey | null) => void;
   /** Pick a site's hue. Snapped into the safe bands, so it never reads as a status colour. */
   setHue: (origin: string, hue: number) => void;
+  /**
+   * Model mode: run the outcome as one turn of Mosaic's own agent network, in this browser, across
+   * the connected sites' networks (MosaicAgent.runTurn). Progress lands in `state.turn`. Writes the
+   * turn proposes still open the site's own approval window. Manual mode does nothing: the
+   * keyword plan (entry/plan.ts) is the runbook.
+   */
+  runOutcome: () => Promise<void>;
+  /** Stop the running turn: no further step starts, and no write window opens. */
+  stopTurn: () => void;
 };
 
 type Store = {
@@ -75,7 +84,12 @@ function createStore(): Store {
   let agent: MosaicAgent | null = null;
   let agentError: string | null = null;
   let agentWaiters: { resolve: (a: MosaicAgent) => void; reject: (e: Error) => void }[] = [];
+  let unwatch: (() => void) | null = null;
   const setAgent = (next: MosaicAgent | null, error: string | null) => {
+    if (next !== agent) {
+      unwatch?.();
+      unwatch = next ? next.watchActions({ start: agentActionStarted, end: agentActionEnded }) : null;
+    }
     agent = next;
     agentError = error;
     if (next) agentWaiters.forEach((w) => w.resolve(next));
@@ -114,6 +128,8 @@ function createStore(): Store {
           ({ url, origin, signal }: { url: string; origin: string; signal?: AbortSignal }) =>
             new Promise<Window>((resolve, reject) => {
               if (signal?.aborted) return reject(new Error(NOT_STARTED));
+              // A stopped turn opens no window: a step that was already in flight cannot write.
+              if (turnStopped && !currentWrite) return reject(new Error(NOT_STARTED));
               pendingWindow?.reject(new Error(NOT_STARTED));
               pendingWindow = { url, origin, owner: currentWrite, resolve, reject };
               dispatch({ type: "approval/ask", origin });
@@ -131,6 +147,112 @@ function createStore(): Store {
         ),
       )
       .catch(() => {});
+  }
+
+  // ---- Agent turns (model mode) -----------------------------------------------------------------
+  /** Invocations the store started itself (run, context reads); the rest are the model's. */
+  const ownInvocations = new Set<string>();
+  /** The running turn, if any, and whether the person stopped the latest one. */
+  let liveTurn: { stopped: boolean } | null = null;
+  let turnStopped = false;
+
+  const connForBase = (base: string) => connFor(base.replace(/\/+$/, ""));
+
+  /** The model called a website_* action: its card in the runbook or the dock shows it running. */
+  function agentActionStarted(run: ActionRun) {
+    if (ownInvocations.has(run.invocationId)) return;
+    for (const entry of run.entries) {
+      const conn = connForBase(entry.base);
+      if (!conn) continue;
+      const key = capKey(conn.site.site.origin, entry.name);
+      if (entry.effect !== "read" && !currentWrite) dispatch({ type: "write/active", cap: key });
+      dispatch({ type: "run/started", cap: key });
+    }
+  }
+
+  /** Its answer: the card shows the full output (or Published / Denied), and the ledger keeps the receipt. */
+  function agentActionEnded(run: ActionRun, receipts: ActionReceipt[] | null) {
+    if (ownInvocations.has(run.invocationId)) return;
+    run.entries.forEach((entry, i) => {
+      const conn = connForBase(entry.base);
+      if (!conn) return;
+      const site = conn.site;
+      const cap = site.capabilities.find((c) => c.id === entry.name);
+      if (!cap) return;
+      const key = capKey(site.site.origin, entry.name);
+      const write = entry.effect !== "read";
+      const o = outcomeOf(receipts?.[i] ?? { action: entry.ref, status: "not_started" }, write ? "write" : "read");
+      const ref: CapRef = { key, origin: site.site.origin, siteName: site.site.name, cap, order: 0 };
+      const host = hostOf(site.site.origin);
+      if (o.kind === "done") {
+        dispatch({ type: "run/done", cap: key, output: o.output, at: new Date(), pulse: true });
+        record(ref, write, "done", write ? `approved on ${host}` : "read", o.requestId);
+      } else {
+        const message = o.kind === "denied" ? `Denied on ${site.site.name}. Nothing changed.` : o.message;
+        dispatch({ type: "run/failed", cap: key, message, denied: o.kind === "denied", unknown: o.kind === "unknown", notStarted: o.kind === "not_started", at: new Date() });
+        const detail = o.kind === "denied" ? `denied on ${host}, nothing changed` : o.kind === "unknown" ? `Outcome unknown, check ${site.site.name}` : o.kind === "not_started" ? `not started, nothing was sent to ${host}` : o.message;
+        record(ref, write, o.kind, detail, o.requestId);
+      }
+      if (write && !currentWrite) {
+        if (getState().asking) dispatch({ type: "approval/ask", origin: null });
+        if (getState().confirming) dispatch({ type: "approval/sheet", origin: null });
+        dispatch({ type: "write/active", cap: null });
+      }
+    });
+  }
+
+  async function runOutcome() {
+    const st = getState();
+    const outcome = st.title.trim();
+    if (!outcome || liveTurn) return;
+    let a: MosaicAgent;
+    try {
+      a = await agentReady();
+    } catch (e) {
+      dispatch({ type: "turn/started", outcome });
+      dispatch({ type: "turn/failed", message: e instanceof Error ? e.message : String(e) });
+      return;
+    }
+    if (a.mode !== "model") return;
+    const { project, version } = deriveModel(st).docProps;
+    const slyData: Record<string, string> = {};
+    if (project) slyData.project = project;
+    if (version) slyData.version = version;
+    const live = { stopped: false };
+    liveTurn = live;
+    turnStopped = false;
+    dispatch({ type: "turn/started", outcome });
+    // Stream chunks come through the stream's own events; the trace gives the spans.
+    const off = a.subscribe((event) => {
+      if (!live.stopped && event.phase !== "update") dispatch({ type: "turn/trace", event });
+    });
+    try {
+      for await (const event of a.runTurn(outcome, slyData)) {
+        if (live.stopped) break;
+        dispatch({ type: "turn/event", event });
+      }
+    } catch (e) {
+      if (!live.stopped) dispatch({ type: "turn/failed", message: e instanceof Error ? e.message : String(e) });
+    } finally {
+      off();
+      if (liveTurn === live) liveTurn = null;
+    }
+  }
+
+  function stopTurn() {
+    if (!liveTurn) return;
+    liveTurn.stopped = true;
+    liveTurn = null;
+    turnStopped = true;
+    agent?.stopTurn();
+    // A write window the turn asked for, not yet opened, is refused: nothing is sent.
+    if (pendingWindow && !pendingWindow.owner) {
+      const p = pendingWindow;
+      pendingWindow = null;
+      dispatch({ type: "approval/ask", origin: null });
+      p.reject(new Error(NOT_STARTED));
+    }
+    dispatch({ type: "turn/stopped" });
   }
 
   function record(r: CapRef, write: boolean, outcome: Receipt["outcome"], detail: string, requestId?: string) {
@@ -176,7 +298,9 @@ function createStore(): Store {
       const a = await agentReady();
       const entry = await entryFor(a, site, id);
       if (!entry) throw new Error(`${site.site.name} no longer offers ${id}.`);
-      const receipts = await a.engine.actions.execute([{ entry, args: input }], async () => true, crypto.randomUUID());
+      const invocation = crypto.randomUUID();
+      ownInvocations.add(invocation);
+      const receipts = await a.engine.actions.execute([{ entry, args: input }], async () => true, invocation).finally(() => ownInvocations.delete(invocation));
       let o = outcomeOf(receipts?.[0] ?? { action: entry.ref, status: "not_started" }, effect);
       // A write whose window was never opened cannot have reached the site.
       if (mine && !mine.opened && o.kind === "unknown") o = { kind: "not_started", message: `The approval window was never opened, so nothing was sent to ${site.site.name}.`, requestId: o.requestId };
@@ -221,6 +345,8 @@ function createStore(): Store {
     if (r.cap.side_effects === "write" && last?.status === "error" && last.unknown) return false;
     // One write at a time: its window, its sheet and its answer belong to it alone.
     if (r.cap.side_effects === "write" && currentWrite) return false;
+    // While an agent turn runs, its own writes come first.
+    if (r.cap.side_effects === "write" && liveTurn) return false;
     let input: unknown;
     try {
       input = deriveModel(getState()).inputFor(r);
@@ -400,6 +526,8 @@ function createStore(): Store {
       if (getState().hot !== cap) dispatch({ type: "ui/hot", cap });
     },
     setHue: (origin, hue) => dispatch({ type: "site/hue", origin, hue: Math.round(hue) % 360 }),
+    runOutcome,
+    stopTurn,
   };
 
   return {

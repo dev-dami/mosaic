@@ -1,5 +1,6 @@
 // The pure reducer for workspace state. Owner: foundation (shared).
 import { hueOfColor, siteHue } from "../hue";
+import { applyTrace, applyTurnEvent, startTurn, stopTurn } from "../agentic/turn";
 import type { Action, ConnectStage, State, Trace, TraceStage } from "./types";
 
 const STAGES: ConnectStage[] = ["consent", "manifest", "network", "validate", "bridge", "build"];
@@ -25,6 +26,7 @@ export const initialState: State = {
   fresh: [],
   hot: null,
   pulse: null,
+  turn: null,
 };
 
 /** Replace the last stage of the trace for `origin` (the one in progress) and append more. */
@@ -169,5 +171,26 @@ export function reducer(state: State, action: Action): State {
 
     case "ui/hot":
       return { ...state, hot: action.cap };
+
+    case "turn/started":
+      return { ...state, turn: startTurn(action.outcome) };
+
+    case "turn/trace": {
+      if (!state.turn) return state;
+      const turn = applyTrace(state.turn, action.event);
+      return turn === state.turn ? state : { ...state, turn };
+    }
+
+    case "turn/event": {
+      if (!state.turn) return state;
+      const turn = applyTurnEvent(state.turn, action.event);
+      return turn === state.turn ? state : { ...state, turn };
+    }
+
+    case "turn/stopped":
+      return state.turn ? { ...state, turn: stopTurn(state.turn) } : state;
+
+    case "turn/failed":
+      return state.turn && state.turn.status === "running" ? { ...state, turn: { ...state.turn, status: "failed", error: action.message } } : state;
   }
 }
