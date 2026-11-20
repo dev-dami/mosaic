@@ -54,7 +54,7 @@ export function SiteDetails({ origin, name, refs, context = [] }: { origin: stri
             </div>
           )}
           <p className="dp-note">
-            {status === "ready" ? "Bridge answered from this origin. Mosaic can call only what the manifest below lists." : status === "failed" ? `Refused: ${conn?.failure ?? "no answer"}` : "Waiting for the site's bridge to answer."}
+            {status === "ready" ? "Its action bridge answered from this origin. Mosaic can call only the actions it lists below." : status === "failed" ? `Refused: ${conn?.failure ?? "no answer"}` : "Waiting for the site's action bridge to answer."}
           </p>
           <ul className="dp-caps">
             {refs.map((r) => {

@@ -183,7 +183,7 @@ what to do. Confirmations name what will change. Never claim something Mosaic di
 | `src/host/app.tsx`, `shell.css`, `theme.css`, `css.d.ts` | foundation | Thin shell: top bar, layout grid (`auto 1fr`), theme switch, slot mounting. |
 | `src/host/state/**` | foundation | One store, typed actions (`state/types.ts`), derived model (`state/model.ts`). |
 | `src/host/primitives/**` | foundation | Shared components and their CSS. |
-| `src/host/doc.ts`, `hue.ts`, `format.ts`, `bridge-client.ts`, `src/protocol.ts`, `src/form.ts` | foundation | Pure logic and the security boundary. |
+| `src/host/doc.ts`, `hue.ts`, `format.ts`, `agentic/catalog.ts`, `src/protocol.ts`, `src/form.ts` | foundation | Pure logic and the security boundary. |
 | `src/host/runbook/**` | A runbook | Document frame, steps, inputs, outputs, wires. |
 | `src/host/entry/**` | B entry | Outcome input, palette, connect flow, sources, refused state, `plan.ts`. |
 | `src/host/review/**`, `providers/bridge.html`, `providers/sheet.ts`, `providers/home.ts` | C review | Review bar, write cards, receipts, toasts, approval layer, the site's sheet and home page. |

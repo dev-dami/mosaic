@@ -152,9 +152,9 @@ describe("served bridge files", () => {
     expect(config.capabilities[0]!.input_schema).toEqual(docsSite.capabilities[0]!.input_schema);
   });
 
-  test("the retired well-known manifest and iframe bridge are gone", async () => {
+  test("the retired iframe bridge and its config are gone", async () => {
     // They fall through to the site's home page, which is HTML, not a manifest or a bridge config.
-    for (const path of ["/.well-known/mosaic-capabilities.json", "/mosaic/bridge", "/mosaic/bridge-config"]) {
+    for (const path of ["/mosaic/bridge", "/mosaic/bridge-config"]) {
       const res = await fetch(`${base}${path}`);
       expect(res.headers.get("content-type")).toContain("text/html");
       expect(await res.text()).not.toContain('"capabilities"');

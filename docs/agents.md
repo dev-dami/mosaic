@@ -73,7 +73,7 @@ So the same unit moves at every level:
 
 | Unit | Format | Who makes it |
 |---|---|---|
-| Capability | `capabilities/0` manifest | The site |
+| Capability | bridge action in its MVP 0.3 network (`agent-manifest.json`) | The site |
 | Template | `mosaic-adapter/0` (capabilities plus steps) | Scout, for a site that publishes nothing |
 | Recipe | `recipe/0` link (outcome, sites, templates) | The person, from any workspace |
 
