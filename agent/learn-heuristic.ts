@@ -1,6 +1,7 @@
 // The learner that needs no model: every table becomes a read, every list on a page with an id in
 // its path becomes a read, every GET form becomes a search, and every POST form becomes a write.
 // It is what Scout uses when no Claude credentials are set, and the floor the model learner must beat.
+// Table reads carry the table's header cells as columns, so their output schema lists each row key.
 import { pathPattern, type FormSnap, type Observation, type PageSnap } from "./observe";
 import { fieldKey, slug, step, type Skill, type SkillField, type Step } from "./skill";
 
@@ -76,7 +77,7 @@ export function learnHeuristic(obs: Observation): Skill[] {
           description: `Opens ${where} and reads the ${name} table (${t.headers.join(", ")}).`,
           side_effects: "read",
           fields: [],
-          steps: [open, step({ op: "extract", field: fieldKey(name), selector: t.selector, kind: "table" })],
+          steps: [open, step({ op: "extract", field: fieldKey(name), selector: t.selector, kind: "table", columns: t.headers })],
         },
         `read-${name}`,
       );
@@ -98,7 +99,14 @@ export function learnHeuristic(obs: Observation): Skill[] {
             description: `Fills the “${label}” form on ${where}, presses “${form.submit.text || "submit"}” and reads the results table.`,
             side_effects: "read",
             fields: [...params, ...fields],
-            steps: [open, ...steps, step({ op: "click", selector: form.submit.selector }), step({ op: "extract", field: "results", selector: "table", kind: "table" })],
+            // A guess: the results table has the columns of this page's table. The runner fails a
+            // table with none of them, so verifying drops a wrong guess instead of serving it.
+            steps: [
+              open,
+              ...steps,
+              step({ op: "click", selector: form.submit.selector }),
+              step({ op: "extract", field: "results", selector: "table", kind: "table", columns: page.tables[0]?.headers ?? [] }),
+            ],
           },
           label,
         );

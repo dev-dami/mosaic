@@ -1,8 +1,9 @@
-// Scout: Mosaic's agent for sites that publish no manifest. It opens a site in a headless browser,
-// learns what its pages can do (with Claude when credentials are set, by rules otherwise), runs each
-// learned read to check it, saves the result as an adapter template, and serves the adapter as an
-// ordinary Mosaic site on its own origin. Mosaic connects that origin like any other site; the
-// manifest says an agent runs it, and every write is approved on Scout's own sheet.
+// Scout: Mosaic's agent for sites that publish no agent files. It opens a site in a headless
+// browser, learns what its pages can do (with Claude when credentials are set, by rules otherwise),
+// runs each learned read to check it, saves the result as an adapter template, and serves the
+// adapter as a site on its own origin with the MVP profile 0.3 files: agent-manifest.json (with
+// x_mosaic.agent), <slug>.network.json, links.json and the nsdeploy action bridge. Any caller's
+// runtime connects that origin like any other site; every write is approved on Scout's own sheet.
 //
 // HTTP (callers must be a Mosaic host in MOSAIC_HOSTS; checked by the Origin header):
 //   POST /learn      {url}        learn a site, save its template, serve it; returns the template summary
@@ -12,11 +13,11 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, type Browser } from "playwright-core";
-import { serveSite, type SiteDefinition } from "../providers/site";
+import { serveSite } from "../providers/site";
 import { CLAUDE_MODEL, hasClaudeCredentials, learnWithClaude } from "./learn-claude";
 import { learnHeuristic } from "./learn-heuristic";
 import { observe } from "./observe";
-import { runSkill, skillProblem, slug, toCapability, type Adapter, type Skill } from "./skill";
+import { adapterSite, skillProblem, slug, verifySkills, type Adapter } from "./skill";
 
 export const SCOUT_PORT = 4108;
 const port = Number(process.env.PORT ?? SCOUT_PORT);
@@ -35,18 +36,6 @@ const served = new Map<string, Served>();
 
 const templateId = (target: string) => slug(new URL(target).host.replace(/[:.]/g, "-"), 60);
 
-function siteFor(adapter: Adapter, browserFor: () => Promise<Browser>): SiteDefinition {
-  const host = new URL(adapter.target.origin).host;
-  return {
-    name: adapter.target.name,
-    description: `Learned by Scout from ${host}. ${host} did not publish these; Scout performs them in a browser.`,
-    port: 0,
-    look: { scheme: "light", accent: adapter.target.theme_color ?? "#5b6472", font: "mono" },
-    agent: { name: "Scout", drives: adapter.target.origin, learned_by: adapter.learned.by },
-    capabilities: adapter.skills.map((skill) => ({ ...toCapability(skill), run: async (input: unknown) => runSkill(await browserFor(), adapter.target.origin, skill, input) })),
-  };
-}
-
 /** Serve an adapter on a stable port: the one it had before, else the next free one. */
 function serve(adapter: Adapter): Served {
   const id = templateId(adapter.target.origin);
@@ -56,7 +45,7 @@ function serve(adapter: Adapter): Served {
   let p = before?.port ?? adapterBase;
   while (!before && used.has(p)) p++;
   const at = `${origin.replace(/:\d+$/, "")}:${p}`;
-  const server = serveSite(siteFor(adapter, getBrowser), { port: p, origin: at });
+  const server = serveSite(adapterSite(adapter, getBrowser), { port: p, origin: at });
   const s: Served = { id, adapter, port: p, origin: at, stop: () => server.stop(true) };
   served.set(id, s);
   return s;
@@ -69,31 +58,6 @@ function save(adapter: Adapter) {
 function isAdapter(x: unknown): x is Adapter {
   const a = x as Adapter;
   return !!a && a.mosaic === "adapter/0" && typeof a.target?.origin === "string" && /^https?:\/\/[^/]+$/.test(a.target.origin) && Array.isArray(a.skills) && a.skills.every((s) => !skillProblem(s));
-}
-
-/** Run each read that can run with what Scout saw. A read that fails is dropped; writes are never run here. */
-async function verify(target: string, skills: Skill[]): Promise<Skill[]> {
-  const b = await getBrowser();
-  const kept: Skill[] = [];
-  for (const skill of skills) {
-    if (skillProblem(skill)) continue;
-    if (skill.side_effects === "write") {
-      kept.push({ ...skill, verified: false });
-      continue;
-    }
-    const input = Object.fromEntries(skill.fields.map((f) => [f.name, f.example]));
-    if (skill.fields.some((f) => f.required && !f.example)) {
-      kept.push({ ...skill, verified: false });
-      continue;
-    }
-    try {
-      await runSkill(b, target, skill, input);
-      kept.push({ ...skill, verified: true });
-    } catch (e) {
-      console.log(`Scout dropped "${skill.title}": ${e instanceof Error ? e.message : e}`);
-    }
-  }
-  return kept;
 }
 
 async function learn(url: string): Promise<Adapter> {
@@ -113,7 +77,7 @@ async function learn(url: string): Promise<Adapter> {
       console.log(`Scout fell back to rules: ${e instanceof Error ? e.message : e}`);
     }
   }
-  const verified = await verify(obs.origin, skills);
+  const verified = await verifySkills(await getBrowser(), obs.origin, skills);
   if (!verified.length) throw new Error(`Scout found nothing it could do on ${target.host}`);
   return { mosaic: "adapter/0", target: { origin: obs.origin, name: obs.name, theme_color: obs.themeColor }, learned: { by, at: new Date().toISOString() }, skills: verified };
 }
