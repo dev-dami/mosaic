@@ -5,7 +5,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { startLink } from "../link/server.ts";
+import { parseEnable, startLink } from "../link/server.ts";
 import { loadToken } from "../link/main.ts";
 import { parseModel, parseStep, renderPrompt } from "../link/protocol.ts";
 import { rejectPermission } from "../link/acp.ts";
@@ -26,21 +26,25 @@ const MESSAGES = [
 ];
 
 let scratch = "";
+const dirs: string[] = [];
 let servers: { stop: (force?: boolean) => unknown }[] = [];
 afterEach(async () => {
   for (const s of servers) s.stop(true);
   servers = [];
-  if (scratch) await rm(scratch, { recursive: true, force: true });
+  for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
   scratch = "";
 });
 
-async function link(extraEnv: Record<string, string> = {}, timeoutMs?: number) {
-  scratch = await mkdtemp(join(tmpdir(), "link-test-"));
+const ALL = new Set(["claude-code", "codex", "claude-code-acp", "codex-acp"] as const);
+
+async function link(extraEnv: Record<string, string> = {}, timeoutMs?: number, enabled?: Set<"claude-code" | "codex" | "claude-code-acp" | "codex-acp">) {
+  const dir = (scratch = await mkdtemp(join(tmpdir(), "link-test-")));
+  dirs.push(dir);
   const env = { ...process.env, PATH: `${BIN}:${process.env.PATH}`, FAKE_RECORD: join(scratch, "record"), FAKE_PID: join(scratch, "pid"), ...extraEnv };
   const logs: string[] = [];
-  const server = startLink({ port: 0, token: TOKEN, origins: [ORIGIN], env, timeoutMs, log: (l) => logs.push(l) });
+  const server = startLink({ port: 0, token: TOKEN, origins: [ORIGIN], enabled, env, timeoutMs, log: (l) => logs.push(l) });
   servers.push(server);
-  return { base: `http://127.0.0.1:${server.port}/v1`, logs, record: () => readFile(join(scratch, "record"), "utf8"), pidFile: join(scratch, "pid") };
+  return { base: `http://127.0.0.1:${server.port}/v1`, logs, record: () => readFile(join(dir, "record"), "utf8"), pidFile: join(dir, "pid") };
 }
 
 const post = (base: string, body: unknown, init: RequestInit = {}) =>
@@ -167,7 +171,27 @@ describe("security", () => {
     expect((await post(base, { model: "claude-code", messages: [] }, { headers: { authorization: `Bearer ${TOKEN}x` } })).status).toBe(401);
     const ok = await fetch(`${base}/models`, { headers: { authorization: `Bearer ${TOKEN}` } });
     expect(ok.status).toBe(200);
-    expect((await ok.json()).data.map((m: any) => m.id)).toEqual(["claude-code", "codex", "claude-code-acp", "codex-acp"]);
+    expect((await ok.json()).data.map((m: any) => m.id)).toEqual(["claude-code"]);
+  }, 5000);
+
+  test("only claude-code is on by default; the others need --enable", async () => {
+    expect([...parseEnable(undefined)]).toEqual(["claude-code"]);
+    expect([...parseEnable("codex")].sort()).toEqual(["claude-code", "codex"]);
+    expect([...parseEnable("acp")].sort()).toEqual(["claude-code", "claude-code-acp", "codex-acp"]);
+    expect(() => parseEnable("codex,bash")).toThrow("unknown backend");
+
+    const { base, record } = await link({ MOSAIC_LINK_CLAUDE_ACP: join(BIN, "fake-acp") });
+    const codex = await post(base, { model: "codex", messages: MESSAGES });
+    expect(codex.status).toBe(400);
+    expect((await codex.json()).error.message).toContain("--enable codex");
+    const acp = await post(base, { model: "claude-code-acp/opus", messages: MESSAGES });
+    expect(acp.status).toBe(400);
+    expect((await acp.json()).error.message).toContain("--enable acp");
+    expect(await record().catch(() => "never ran")).toBe("never ran");
+
+    const { base: base2 } = await link({}, undefined, parseEnable("codex,acp"));
+    const models = await (await fetch(`${base2}/models`, { headers: { authorization: `Bearer ${TOKEN}` } })).json();
+    expect(models.data.map((m: any) => m.id)).toEqual(["claude-code", "codex", "claude-code-acp", "codex-acp"]);
   }, 5000);
 
   test("only listed origins get CORS, and preflight allows the private network", async () => {
@@ -217,6 +241,7 @@ describe("security", () => {
 
   test("the pairing token file is 0600 and survives restarts unless rotated", async () => {
     scratch = await mkdtemp(join(tmpdir(), "link-token-"));
+    dirs.push(scratch);
     const file = join(scratch, "mosaic", "link-token");
     const a = await loadToken(file, false);
     expect(a).toMatch(/^mlk_[A-Za-z0-9_-]{40,}$/);
@@ -228,7 +253,7 @@ describe("security", () => {
 
 describe("codex", () => {
   test("codex exec runs read-only with an output schema and the prompt on stdin", async () => {
-    const { base, record } = await link();
+    const { base, record } = await link({}, undefined, ALL);
     const res = await (await client(base)).chat({ model: "codex", messages: MESSAGES, tools: TOOLS });
     expect(res.finishReason).toBe("tool_calls");
     expect(JSON.parse(res.toolCalls[0].function.arguments)).toEqual({ q: "codex" });
@@ -245,7 +270,7 @@ describe("codex", () => {
 
 describe("ACP", () => {
   test("handshake: no fs or terminal, no MCP servers, permissions rejected, chunks joined", async () => {
-    const { base, record } = await link({ MOSAIC_LINK_CLAUDE_ACP: join(BIN, "fake-acp") });
+    const { base, record } = await link({ MOSAIC_LINK_CLAUDE_ACP: join(BIN, "fake-acp") }, undefined, ALL);
     const res = await (await client(base)).chat({ model: "claude-code-acp/opus", messages: MESSAGES, tools: TOOLS });
     expect(res.content).toBe("acp says hi");
     expect(res.toolCalls.map((t: any) => t.function.name)).toEqual(["lookup"]);
@@ -265,7 +290,7 @@ describe("ACP", () => {
   }, 10_000);
 
   test("disconnecting sends session/cancel and kills the ACP agent", async () => {
-    const { base, pidFile, record } = await link({ MOSAIC_LINK_CODEX_ACP: join(BIN, "fake-acp"), FAKE_MODE: "sleep" });
+    const { base, pidFile, record } = await link({ MOSAIC_LINK_CODEX_ACP: join(BIN, "fake-acp"), FAKE_MODE: "sleep" }, undefined, ALL);
     const ac = new AbortController();
     const req = post(base, { model: "codex-acp", messages: MESSAGES }, { signal: ac.signal }).catch((e) => e);
     const pid = await readPid(pidFile);

@@ -20,15 +20,33 @@ the brain: it never runs a Mosaic tool itself.
 3. In Mosaic, open AI model settings and enter:
    - Router: `http://127.0.0.1:4199/v1`
    - Key: the pairing token
-   - Model: `claude-code` (or `codex`, `claude-code-acp`, `codex-acp`). Add `/<model>` to
-     pick the agent's model, e.g. `claude-code/sonnet` or `codex/gpt-5.2`.
+   - Model: `claude-code`. Add `/<model>` to pick the agent's model, e.g. `claude-code/sonnet`.
+4. A deployed Mosaic (not `http://localhost:4000`) also needs its origin allowed:
+   `MOSAIC_LINK_ORIGINS=https://<host> bun run link`.
+
+Only `claude-code` is on by default, because it is the only backend with no tools. The
+others can read files, and a site's text reaches their prompt, so a hostile site could try
+to make them read your files into an answer. Turn them on deliberately:
+`bun run link --enable codex,acp` (or `MOSAIC_LINK_ENABLE=codex,acp`; `acp` means both ACP
+backends). Link prints one warning per enabled backend. A model that is off gets a 400
+naming the flag, and `/v1/models` lists only the enabled ones.
+
+## Containment
+
+| Backend | Default | Agent's own tools | Can read your files | Status |
+| --- | --- | --- | --- | --- |
+| `claude-code` | on | none (`--tools ""`, no MCP) | no | tested with the real CLI |
+| `codex` | off (`--enable codex`) | shell, read-only sandbox | yes | tested with a fake CLI only |
+| `claude-code-acp` | off (`--enable acp`) | the adapter's; permission requests refused | possibly, through tools that do not ask | experimental: untested with the real adapter |
+| `codex-acp` | off (`--enable acp`) | the adapter's; permission requests refused | possibly, through tools that do not ask | experimental: untested with the real adapter |
 
 Settings, all optional:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `MOSAIC_LINK_PORT` | `4199` | Port on 127.0.0.1 |
-| `MOSAIC_LINK_ORIGINS` | `http://localhost:4000` | Comma-separated origins allowed to call Link. Add your deployed Mosaic origin here. |
+| `MOSAIC_LINK_ORIGINS` | `http://localhost:4000` | Comma-separated origins allowed to call Link. A deployed Mosaic needs `https://<host>` here. |
+| `MOSAIC_LINK_ENABLE` | (empty) | Extra backends: `codex`, `acp`, `claude-code-acp`, `codex-acp`. Same as `--enable`. |
 | `MOSAIC_LINK_CLAUDE_ACP` | `claude-agent-acp` | Command for `claude-code-acp` |
 | `MOSAIC_LINK_CODEX_ACP` | `codex-acp` | Command for `codex-acp` |
 
@@ -54,7 +72,7 @@ skips `~/.codex/config.toml` (so no user MCP servers); auth still uses `CODEX_HO
 step schema keeps `arguments` as a JSON string because `--output-schema` uses OpenAI
 structured outputs, which need a closed schema.
 
-**`claude-code-acp`, `codex-acp`** speak the Agent Client Protocol (ACP) v1 over stdio:
+**`claude-code-acp`, `codex-acp`** (experimental, untested with the real adapters) speak the Agent Client Protocol (ACP) v1 over stdio:
 newline-delimited JSON-RPC 2.0. Link sends `initialize` (`protocolVersion: 1`,
 `clientCapabilities.fs.readTextFile/writeTextFile: false`, `terminal: false`),
 `session/new` (`cwd`: an empty temp dir, `mcpServers: []`), `session/set_config_option`
@@ -94,10 +112,11 @@ command variable.
   still asks before any site action.
 - **Codex still has a shell.** `codex exec` has no flag to turn its tools off. The
   read-only sandbox stops writes, but Codex can still read files and run read-only
-  commands. Prefer `claude-code` for untrusted sites.
+  commands, which makes it a prompt-injection exfiltration path. That is why it is off
+  by default.
 - **ACP adapters have their own tools.** Link refuses every permission request and offers
   no file or terminal access, but an adapter may run tools that do not ask (for example
-  reads). Treat ACP as less contained than headless `claude-code`.
+  reads). That is why ACP is off by default.
 - **Anyone with the token and an allowed origin can use your agent.** Keep the token
   private, keep `MOSAIC_LINK_ORIGINS` short, and rotate with `--rotate` if it leaks.
 
@@ -109,4 +128,5 @@ asking whether the site may reach apps and devices on your computer or network; 
 Allow, or the request fails as a network error. Older versions send a CORS preflight with
 `Access-Control-Request-Private-Network: true` instead, which Link answers. From
 `http://localhost:4000` there is no prompt, since the page is already local. The page's
-Content-Security-Policy `connect-src` must also allow `http://127.0.0.1:4199`.
+Content-Security-Policy `connect-src` allows `http://127.0.0.1:4199` and
+`http://localhost:4199`.

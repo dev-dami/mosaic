@@ -13,6 +13,7 @@ export type LinkOptions = {
   port: number;
   token: string;
   origins: string[];
+  enabled?: Set<Backend>; // default: claude-code only (tools off)
   timeoutMs?: number;
   env?: Record<string, string | undefined>; // the environment agents run with
   log?: (line: string) => void;
@@ -21,6 +22,39 @@ export type LinkOptions = {
 };
 
 const MAX_BODY = 4 * 1024 * 1024;
+
+// Backends that can read files are a prompt-injection exfiltration path (a site's text
+// reaches the prompt), so only tool-less headless claude-code is on by default.
+export const DEFAULT_ENABLED: readonly Backend[] = ["claude-code"];
+
+export const ENABLE_WARNINGS: Record<Backend, string> = {
+  "claude-code": "",
+  codex: "codex is enabled: Codex keeps a read-only shell, so a hostile site's text could make it read your files into the answer.",
+  "claude-code-acp": "claude-code-acp is enabled (experimental): the adapter may run tools that do not ask permission, such as file reads.",
+  "codex-acp": "codex-acp is enabled (experimental): the adapter may run tools that do not ask permission, such as file reads.",
+};
+
+/**
+ * Read `--enable` / MOSAIC_LINK_ENABLE: comma-separated backend names, where "acp" means
+ * both ACP backends. claude-code is always on.
+ *
+ * :param value: The list, e.g. "codex,acp"; empty or undefined for the default.
+ * :return: The enabled backends.
+ * :raises Error: For an unknown name.
+ */
+export function parseEnable(value: string | undefined): Set<Backend> {
+  const enabled = new Set<Backend>(DEFAULT_ENABLED);
+  for (const raw of (value || "").split(",")) {
+    const name = raw.trim();
+    if (!name) continue;
+    if (name === "acp") {
+      enabled.add("claude-code-acp");
+      enabled.add("codex-acp");
+    } else if ((BACKENDS as readonly string[]).includes(name)) enabled.add(name as Backend);
+    else throw new Error(`unknown backend in --enable: ${name} (use codex, acp, claude-code-acp, codex-acp)`);
+  }
+  return enabled;
+}
 
 /**
  * Compare a presented bearer token with the pairing token in constant time.
@@ -50,6 +84,8 @@ export function startLink(opts: LinkOptions) {
   const log = opts.log ?? ((line: string) => console.log(line));
   const run = opts.run ?? runBackend;
   const allowed = new Set(opts.origins);
+  const enabled = opts.enabled ?? new Set(DEFAULT_ENABLED);
+  const listed = BACKENDS.filter((b) => enabled.has(b));
   let busy = false;
 
   const corsHeaders = (origin: string): Record<string, string> => ({
@@ -67,7 +103,11 @@ export function startLink(opts: LinkOptions) {
       return json(400, errorBody("the body is not JSON"), cors);
     }
     const picked = parseModel(body.model);
-    if (!picked) return json(400, errorBody(`unknown model; use one of ${BACKENDS.join(", ")}, optionally with /<model>`), cors);
+    if (!picked) return json(400, errorBody(`unknown model; use one of ${listed.join(", ")}, optionally with /<model>`), cors);
+    if (!enabled.has(picked.backend)) {
+      const flag = picked.backend === "codex" ? "codex" : "acp";
+      return json(400, errorBody(`${picked.backend} is off; start Mosaic Link with \`bun run link --enable ${flag}\` (or MOSAIC_LINK_ENABLE=${flag}) to use it`), cors);
+    }
     if (!Array.isArray(body.messages)) return json(400, errorBody("messages must be an array"), cors);
     const messages = body.messages as ChatMessage[];
     const tools = (Array.isArray(body.tools) ? body.tools : []) as ChatTool[];
@@ -141,7 +181,7 @@ export function startLink(opts: LinkOptions) {
       const path = url.pathname.replace(/\/+$/, "");
       if (req.method === "GET" && path === "/v1/models") {
         const created = Math.floor(Date.now() / 1000);
-        return json(200, { object: "list", data: BACKENDS.map((id) => ({ id, object: "model", created, owned_by: "mosaic-link" })) }, cors);
+        return json(200, { object: "list", data: listed.map((id) => ({ id, object: "model", created, owned_by: "mosaic-link" })) }, cors);
       }
       if (req.method === "POST" && path === "/v1/chat/completions") return chat(req, cors);
       return json(404, errorBody("not found"), cors);
