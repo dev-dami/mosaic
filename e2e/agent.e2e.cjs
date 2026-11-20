@@ -27,9 +27,13 @@ const KEY = "otk_agent789";
 const FINAL = "Lumen v1.0 is launched: notes drafted, docs previewed, release published.";
 const DRAFT = "Lumen v1.0 is the first public release, with a new plugin API.";
 
+// Text streams one character per chunk, in one write, as real models stream tokens: a burst of
+// deltas inside one task once passed React's nested-update limit and killed the turn.
 const sse = (res, model, delta) => {
   res.setHeader("content-type", "text/event-stream");
-  res.write(`data: ${JSON.stringify({ model, choices: [{ delta, finish_reason: null }] })}\n\n`);
+  const { content, ...rest } = delta;
+  const parts = [...(content ? [...content].map((c) => ({ content: c })) : []), ...(Object.keys(rest).length ? [rest] : [])];
+  res.write(parts.map((d) => `data: ${JSON.stringify({ model, choices: [{ delta: d, finish_reason: null }] })}\n\n`).join(""));
   res.write(`data: ${JSON.stringify({ model, choices: [{ delta: {}, finish_reason: delta.tool_calls ? "tool_calls" : "stop" }] })}\n\n`);
   res.end("data: [DONE]\n\n");
 };

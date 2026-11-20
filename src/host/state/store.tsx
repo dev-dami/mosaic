@@ -71,9 +71,18 @@ type Store = {
 function createStore(): Store {
   let state = initialState;
   const listeners = new Set<() => void>();
+  // State changes at once; React hears about it once per task. A streamed answer dispatches a
+  // delta per token, and a render per delta inside one task passed React's nested-update limit
+  // (it threw "Maximum update depth exceeded" mid-turn). Batching per microtask was not enough.
+  let notifying = false;
   const dispatch = (a: Action) => {
     state = reducer(state, a);
-    listeners.forEach((l) => l());
+    if (notifying) return;
+    notifying = true;
+    setTimeout(() => {
+      notifying = false;
+      listeners.forEach((l) => l());
+    }, 0);
   };
   const getState = () => state;
   let nextKey = 1;
