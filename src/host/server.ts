@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import homepage from "./index.html";
+import { runtimeRoute } from "../runtime-files";
 
 const port = Number(process.env.PORT ?? 4000);
 
@@ -25,6 +26,8 @@ Bun.serve({
   routes: {
     "/": homepage,
     "/mosaic-host.json": () => Response.json({ build, suggestions, agent }, { headers: { "cache-control": "no-store" } }),
+    // The vendored nsdeploy browser runtime that runs Mosaic's own agent network.
+    ...runtimeRoute,
   },
   development: process.env.NODE_ENV !== "production",
 });

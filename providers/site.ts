@@ -1,5 +1,6 @@
 import Ajv from "ajv";
 import { MANIFEST_PATH, type Capability, type Manifest } from "../src/protocol";
+import { runtimeRoute } from "../src/runtime-files";
 import bridgePage from "./bridge.html";
 import { renderHome } from "./home";
 
@@ -100,6 +101,8 @@ export function serveSite(def: SiteDefinition, at: { port?: number; origin?: str
       [BRIDGE_PATH]: bridgePage,
       "/mosaic/bridge-config": () => Response.json(site.bridgeConfig),
       "/api/capabilities/:id": { POST: (req) => site.handleApi(req, req.params.id) },
+      // The vendored nsdeploy browser runtime, for the site's agent pages and action bridge.
+      ...runtimeRoute,
       // Result links (for example /releases/v1.0) land on the site's own page with its activity log.
       "/*": () => site.homePage(),
     },
