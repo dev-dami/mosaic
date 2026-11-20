@@ -8,6 +8,21 @@ const settings = require("./areas/settings.cjs");
 
 const KEY = "otk_test123";
 const KEY2 = "otk_second456";
+const KEY3 = "sk-ant-e2e-claude";
+const CLAUDE_ANSWER = "CLAUDE_STUB: read over the Messages API.";
+
+/** One Messages API reply as server-sent events, for a stubbed api.anthropic.com. */
+function claudeSse(text) {
+  const ev = (type, data) => `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`;
+  return (
+    ev("message_start", { message: { id: "msg_e2e", type: "message", role: "assistant", model: "claude-opus-5-5", content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 1, output_tokens: 0 } } }) +
+    ev("content_block_start", { index: 0, content_block: { type: "text", text: "" } }) +
+    ev("content_block_delta", { index: 0, delta: { type: "text_delta", text } }) +
+    ev("content_block_stop", { index: 0 }) +
+    ev("message_delta", { delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 3 } }) +
+    ev("message_stop", {})
+  );
+}
 const ANSWER = "MOCK_ANSWER: the router read your request.";
 
 /** A scripted OpenAI-compatible router. Records each request's path, whether it had Authorization, and the tools offered. */
@@ -114,10 +129,47 @@ async function settingsChecks({ browser, procs, base, sitePort, screenshot }) {
     await settings.mode(panel, "manual").waitFor();
     await assertKeyHidden(page, KEY, "after delete");
 
-    // 16. No request from the page, to any origin, carried the key except Authorization at the router.
+    // 15b. The Claude preset: a turn goes to api.anthropic.com/v1/messages (stubbed here) in the
+    //      Messages API format, with the key as authorization there, not to an OpenAI-format path.
+    const claudeCalls = [];
+    await context.route("https://api.anthropic.com/**", async (route) => {
+      const req = route.request();
+      claudeCalls.push({ url: req.url(), auth: (await req.allHeaders()).authorization, body: req.postDataJSON() });
+      await route.fulfill({ status: 200, headers: { "content-type": "text/event-stream", "access-control-allow-origin": "*" }, body: claudeSse(CLAUDE_ANSWER) });
+    });
+    await settings.preset(panel, "claude");
+    assert.equal(await panel.getByLabel("Router base URL").inputValue(), "https://api.anthropic.com");
+    assert.equal(await panel.getByLabel("Model").inputValue(), "claude-opus-5-5");
+    await panel.getByLabel("Key", { exact: true }).fill(KEY3);
+    await panel.getByRole("button", { name: "Save and use" }).click();
+    await settings.waitInUse(panel, "Claude");
+    await panel.getByRole("button", { name: "Test model" }).click();
+    await panel.locator(".check-line.ok", { hasText: CLAUDE_ANSWER }).waitFor({ timeout: 20000 });
+    // The runtime probes a custom router's /agent-manifest.json for a published mock (engine.js
+    // loadTop). That probe carries no key; every other call is a Messages API call.
+    const probes = claudeCalls.filter((c) => new URL(c.url).pathname === "/agent-manifest.json");
+    assert.ok(probes.every((c) => !c.auth), "the manifest probe carries no key");
+    const messageCalls = claudeCalls.filter((c) => !probes.includes(c));
+    assert.ok(messageCalls.length >= 1, "api.anthropic.com got the call");
+    for (const c of messageCalls) {
+      assert.equal(new URL(c.url).pathname, "/v1/messages");
+      assert.equal(c.auth, `Bearer ${KEY3}`);
+      assert.equal(c.body.model, "claude-opus-5-5");
+      assert.equal(c.body.stream, true);
+    }
+    assert.deepEqual(messageCalls[0].body.tools.map((t) => t.name), ["pagewright", "composer"]);
+    await assertKeyHidden(page, KEY3, "after the Claude turn");
+    await settings.remove(panel, "Claude");
+    await settings.mode(panel, "manual").waitFor();
+
+    // 16. No request from the page, to any origin, carried a key except Authorization at its router.
     const all = (await Promise.all(requests)).filter(Boolean);
     for (const { url, headers } of all) {
       for (const [name, value] of Object.entries(headers)) {
+        if (value.includes(KEY3)) {
+          assert.ok(name === "authorization" && url.startsWith("https://api.anthropic.com/v1/messages"), `the Claude key leaked in ${name} to ${url}`);
+          continue;
+        }
         if (!value.includes(KEY) && !value.includes(KEY2)) continue;
         assert.ok(name === "authorization" && url.startsWith(routerUrl), `the key leaked in ${name} to ${url}`);
       }
