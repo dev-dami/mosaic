@@ -200,3 +200,8 @@ bun run build:deploy   # the single-file server for Vercel (docs/deploy.md)
 - Agent networks use the [Neuro SAN](https://github.com/cognizant-ai-lab/neuro-san) network format.
 - Related work: MIT NANDA's [WebAgentica](https://github.com/projnanda/webagentica) packages agents for
   one publisher. Mosaic composes many publishers.
+
+## License
+
+Mosaic is licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for the bundled
+third-party code.
