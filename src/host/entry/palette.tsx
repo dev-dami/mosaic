@@ -241,7 +241,7 @@ export function Palette() {
                           </span>
                           <span className="item-main">
                             <span className="item-title">{copied ? "Recipe link copied" : "Copy recipe link"}</span>
-                            <span className="item-sub">The outcome and its sites in one link. Opening it builds this workspace again, anywhere.</span>
+                            <span className="item-sub">The outcome and its sites in one link, without keys, inputs or results. Opening it builds this workspace again, anywhere.</span>
                           </span>
                         </Command.Item>
                       )}
