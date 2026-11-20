@@ -4,19 +4,19 @@ import { announcerSite } from "../providers/announcer";
 import { issuesSite } from "../providers/issues";
 import type { SiteDefinition } from "../providers/site";
 import { videosSite } from "../providers/videos";
-import { autoBinding, capKey, type CapRef } from "../src/host/doc";
+import { autoBinding, capKey, parseOutcome, type CapRef } from "../src/host/doc";
 import { planWorkspace } from "../src/host/entry/plan";
 
 // The demo story in docs/demo-script.md: comments → issue → agent → post → reply. Every value
-// must flow by name alone, with Project typed once.
-const OUTCOME = "Fix the bug from my comments and post the fix";
+// must flow by name alone. The outcome names the project, so nothing is typed by hand.
+const OUTCOME = "Fix the bug in Mosaic from my comments and post the fix";
 const sites = [videosSite, issuesSite, agentsSite, announcerSite];
 const originOf = (d: SiteDefinition) => `http://localhost:${d.port}`;
 const refs: CapRef[] = sites.flatMap((d, ci) =>
   d.capabilities.map(({ run: _run, ...cap }, i) => ({ key: capKey(originOf(d), cap.id), origin: originOf(d), siteName: d.name, cap, order: ci * 100 + i })),
 );
 const ref = (d: SiteDefinition, id: string) => refs.find((r) => r.key === capKey(originOf(d), id))!;
-const docProps = { project: "Mosaic", version: "" };
+const docProps = { project: parseOutcome(OUTCOME).project ?? "", version: "" };
 const bound = (d: SiteDefinition, id: string, field: string) => {
   const b = autoBinding(ref(d, id), field, refs, docProps);
   if (!b) return null;
@@ -39,6 +39,10 @@ describe("demo chain", () => {
     expect(bound(announcerSite, "schedule-announcement", "text")).toBe("output:draft-announcement.text");
     expect(bound(videosSite, "reply-to-comment", "comment_id")).toBe("output:find-bug-reports.comment_id");
     expect(bound(videosSite, "reply-to-comment", "reply")).toBe("output:plan-fix.reply");
+  });
+
+  test("the outcome names the project", () => {
+    expect(parseOutcome(OUTCOME).project).toBe("Mosaic");
   });
 
   test("the outcome keeps every step and orders the sites as the story goes", () => {

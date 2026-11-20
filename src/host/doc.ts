@@ -55,7 +55,11 @@ export function parseOutcome(title: string): { project?: string; version?: strin
   const version = versionMatch ? (versionMatch[0].startsWith("v") ? versionMatch[0] : `v${versionMatch[0]}`) : undefined;
   let rest = versionMatch ? title.replace(versionMatch[0], " ") : title;
   rest = rest.replace(VERBS, " ").replace(TASK_NOUNS, " ").replace(/\b(of|for|the|a|an|and|then|to)\b/gi, " ").replace(/[,;]/g, " ").replace(/\s+/g, " ").trim();
-  return { project: rest || undefined, version };
+  // A project is a name, not a phrase. When more than two words are left ("Fix the bug in Mosaic
+  // from my comments"), take the first capitalised word after the first, else no project.
+  if (rest.split(" ").length <= 2) return { project: rest || undefined, version };
+  const named = title.split(/\s+/).slice(1).find((w) => /^[A-Z][\w./-]*$/.test(w));
+  return { project: named, version };
 }
 
 // ── Markdown (a small, safe subset rendered to elements, never to HTML strings) ──

@@ -39,6 +39,8 @@ describe("outcome", () => {
     expect(parseOutcome("Launch Lumen v1.0")).toEqual({ project: "Lumen", version: "v1.0" });
     expect(parseOutcome("Ship 2.1 of acme/widget")).toEqual({ project: "acme/widget", version: "v2.1" });
     expect(parseOutcome("")).toEqual({ project: undefined, version: undefined });
+    expect(parseOutcome("Fix the bug in Mosaic from my comments and post the fix")).toEqual({ project: "Mosaic", version: undefined });
+    expect(parseOutcome("fix the bug from my comments and post the fix")).toEqual({ project: undefined, version: undefined });
   });
 });
 
