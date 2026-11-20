@@ -6,3 +6,4 @@ e2e/last-run.png
 launch/
 .scout/
 bench/
+dist-server/
