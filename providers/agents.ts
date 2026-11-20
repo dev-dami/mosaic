@@ -82,7 +82,24 @@ export const agentsSite: SiteDefinition = {
       description: "List your servers and what is running on them.",
       side_effects: "read",
       input_schema: { type: "object", properties: {} },
-      output_schema: { type: "object", properties: { servers: { type: "array" } } },
+      output_schema: {
+        type: "object",
+        properties: {
+          servers: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                server: { type: "string" },
+                where: { type: "string" },
+                hardware: { type: "string" },
+                status: { type: "string" },
+                agents: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
       run: () => ({ servers: servers.map((s) => ({ server: s.name, where: s.region, hardware: s.hardware, status: s.status, agents: s.agents })) }),
     },
     {

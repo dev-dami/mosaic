@@ -1,6 +1,7 @@
 import Ajv from "ajv";
 import { MANIFEST_PATH, type Capability, type Manifest } from "../src/protocol";
 import { runtimeRoute } from "../src/runtime-files";
+import { AGENT_MANIFEST_PATH, agenticArtifacts, BRIDGE_MANIFEST_PATH, DEFAULT_LOOK, LINKS_PATH, networkPath } from "./agentic";
 import bridgePage from "./bridge.html";
 import { renderHome } from "./home";
 
@@ -28,8 +29,6 @@ export type BridgeConfig = {
   look: SiteLook;
   capabilities: (Pick<Capability, "id" | "title" | "description" | "side_effects"> & { fields: Record<string, string> })[];
 };
-
-const DEFAULT_LOOK: SiteLook = { scheme: "light", accent: "#2f6fde", font: "sans" };
 
 export type Activity = { at: string; capability: string; input: unknown };
 
@@ -83,7 +82,7 @@ export function createSite(def: SiteDefinition, origin: string, allowedHosts: st
 
   const homePage = () => renderHome(def, def.look ?? DEFAULT_LOOK, activity);
 
-  return { manifest, bridgeConfig, handleApi, homePage, activity };
+  return { manifest, bridgeConfig, agentic: agenticArtifacts(def), handleApi, homePage, activity };
 }
 
 export function serveSite(def: SiteDefinition, at: { port?: number; origin?: string } = {}) {
@@ -91,6 +90,8 @@ export function serveSite(def: SiteDefinition, at: { port?: number; origin?: str
   const origin = at.origin ?? process.env.PUBLIC_ORIGIN ?? `http://localhost:${port}`;
   const allowedHosts = (process.env.MOSAIC_HOSTS ?? "http://localhost:4000").split(",").map((s) => s.trim());
   const site = createSite(def, origin, allowedHosts);
+  // Public agent artifacts: any origin may read them, never with credentials (spec §3.3, §3.4).
+  const publicJson = (body: unknown) => () => Response.json(body, { headers: { "access-control-allow-origin": "*" } });
 
   const server = Bun.serve({
     port,
@@ -100,6 +101,11 @@ export function serveSite(def: SiteDefinition, at: { port?: number; origin?: str
         Response.json(site.manifest, { headers: { "access-control-allow-origin": "*" } }),
       [BRIDGE_PATH]: bridgePage,
       "/mosaic/bridge-config": () => Response.json(site.bridgeConfig),
+      [AGENT_MANIFEST_PATH]: publicJson(site.agentic.agentManifest),
+      [networkPath(def)]: publicJson(site.agentic.network),
+      [LINKS_PATH]: publicJson(site.agentic.links),
+      // Read only by the site's own bridge page, so it stays same-origin.
+      [BRIDGE_MANIFEST_PATH]: () => Response.json(site.agentic.bridgeManifest),
       "/api/capabilities/:id": { POST: (req) => site.handleApi(req, req.params.id) },
       // The vendored nsdeploy browser runtime, for the site's agent pages and action bridge.
       ...runtimeRoute,
