@@ -1,132 +1,101 @@
 # Demo script: the bug in the comments
 
-A 60 to 90 second recording. One morning of real work: a viewer reports a bug under my video, it
-becomes an issue, an agent on my own server fixes it, a post goes out, and the viewer gets a reply.
-Four sites, one outcome, no copy and paste.
+The video for the Devpost form. It must be under 2 minutes, public on YouTube, and show Mosaic running
+in a browser. Judges may stop at 2:00, so this script ends at 1:52. It uses the live public URLs.
+
+Story: a viewer reports a bug under a video. Mosaic's agent turns it into an issue, a fix and a post,
+across four sites. Each site approves its own write. Then Mosaic connects a site it has never seen, and
+Scout agentifies a forum that publishes nothing.
+
+## Live URLs
+
+Fill these after the deploy (card C13b). The names below are the suggested Vercel projects in
+[deploy.md](deploy.md).
+
+| Name in this script | URL |
+|---|---|
+| Mosaic | `TODO(verify): https://mosaic-host.vercel.app` |
+| Reelhouse | `TODO(verify): https://mosaic-videos.vercel.app` |
+| Patchbay | `TODO(verify): https://mosaic-issues.vercel.app` |
+| Foreman | `TODO(verify): https://mosaic-agents.vercel.app` |
+| Loudhailer | `TODO(verify): https://mosaic-announcer.vercel.app` |
+| Inkpost | `TODO(verify): https://mosaic-newsletter.vercel.app/inkpost` |
+| Corkboard | `TODO(verify): https://mosaic-corkboard.vercel.app` |
+| Repository | `TODO(verify): repository URL, public before the submission` |
 
 ## Before you record
 
-- Start everything fresh: `bun run dev`. State lives in memory, so restart before each take. Then the
-  issue is #43, the agent run is run-412 and the post is post-1 every time.
-- Open http://localhost:4000 in a 1440x900 window. Light theme.
-- The sites: Reelhouse (videos) on :4105, Patchbay (code issues) on :4106, Foreman (agents on your
-  servers) on :4107, Loudhailer (posts) on :4103.
-- Every value below comes from the sites. You type only the outcome, four addresses, and "Mosaic".
+- Use a 1440x900 browser window, light theme, zoom 110 %. Hide bookmarks and other tabs.
+- Redeploy or wait for a cold start, so the sites show their seed data. State lives in memory. A
+  site that kept state from a rehearsal shows higher numbers (issue #44 and up).
+- Open **AI model** and save a profile before you record: router empty (Otari) or your own router, a
+  model, and your key. Never show the key on camera. Close the dialog.
+- Rehearse the turn once with the exact outcome below. A real model can choose other steps.
+  `TODO(verify): the full chain runs on Otari with the default model. If it does not, pick another
+  model in the profile, or shorten the outcome to three sites.`
+- Delete Scout's saved template for Corkboard, so Scout learns it on camera.
+  `TODO(verify): the public Scout URL behind Caddy. If Scout is not public, record that beat on
+  localhost and say so in the caption.`
+- **Consent dialogs.** Mosaic asks before it contacts each new origin. On camera, click **Always allow
+  <site>** on each dialog. Each one costs about one second, and then that origin does not ask again in
+  this session. To save more time, show the first dialog and cut the next ones in the edit.
+- Write popups: allow popups for the Mosaic origin in the browser before you record.
 
-## The full take (about 80 seconds)
+## Shot list (1:52)
 
-### 1. The outcome (0:00 to 0:06)
+| Time | Shot | Do | Say (voice-over) |
+|---|---|---|---|
+| 0:00-0:15 | The problem, and the outcome typed | Mosaic, empty workspace. Click the outcome box and type **Fix the bug in Mosaic from my comments and post the fix**. | "Each website now publishes its own agents. But my work crosses four sites: my videos, my issues, my build servers, my posts. Today I am the glue. So I type the outcome once." |
+| 0:15-0:23 | AI model settings | Click **AI model**. Hold on the profile line and on "Your key is sent only to api.otari.ai. Mosaic and the sites you connect never see it." Close. | "It runs on my own model key. The key goes only to my router. Not to Mosaic, and not to the sites." |
+| 0:23-0:30 | The turn starts | Click **Run with the agent**. The first consent dialog names Reelhouse's origin. Click **Always allow**. | "Before Mosaic contacts a site, it asks me, and it names the site." |
+| 0:30-0:48 | The agent works across sites | The runbook fills: a Reelhouse step with its site chip, the `find-bug-reports` card with its input and output (the Safari bug, comment c-2042), then "Mosaic · composer" drafts the issue, then the Patchbay step. Allow each new site. | "Mosaic's network runs right here in my browser. It loads each site's published agent network and runs it on my model. It finds the bug report and drafts the issue." |
+| 0:48-1:05 | A write, approved on the site's own sheet | The Patchbay card says **Waiting for approval**. Click **Open Patchbay to approve**. Patchbay's own window opens with its own sheet: the title and the description from the comment. Wait for the Approve fill, then click **Approve**. The card says **Published**, issue #43. | "Writes never run on Mosaic's page. Patchbay shows its own sheet, on its own site. The site owns consent, not the agent." |
+| 1:05-1:12 | The rest of the chain | Approve Foreman's **Send agent to fix** and Loudhailer's **Schedule announcement** the same way. Speed up 2x or cut to the receipts. Hold on the summary. | "Same for the fix and the post. Four sites, one outcome, nothing copied." |
+| 1:12-1:27 | A site Mosaic has never seen | Press Ctrl K. Paste the Inkpost URL. Allow the consent dialog. "+2 capabilities from Inkpost" appears. Point at **Mosaic unchanged** in the top bar. | "Inkpost is a newsletter Mosaic has never seen. I paste its URL. Mosaic loads the network by its exact name. No code changed." |
+| 1:27-1:42 | Scout learns Corkboard | Press Ctrl K. Paste the Corkboard URL. Mosaic refuses it: no manifest. Click **Teach Scout this site**. After a few seconds: "Scout learned 5 skills". The step has a dashed **Scout** tag. | "Corkboard publishes nothing. Scout opens it in a browser, learns its pages, checks every read by running it, and publishes a conformant agent network for it." |
+| 1:42-1:52 | End card | Static card, see below. | "Mosaic. One outcome, many sites, your key, and every site approves its own writes." |
 
-- Click the outcome box. Type: **Fix the bug in Mosaic from my comments and post the fix**
-- Press Enter. The connect palette opens.
+`TODO(verify): the Scout skill count on the live Corkboard. The rules learner finds 5 skills locally.`
 
-> "Every morning starts the same way: the comments on my latest video."
+### End card (10 s)
 
-### 2. Connect four sites (0:06 to 0:18)
+> **Mosaic**
+> One outcome. Many sites' agent networks, run in your browser on your own key.
+> Every write approved on the site's own sheet.
+> Built on the agentic-web MVP spec 0.3 and the nsdeploy runtime.
+> REPOSITORY URL · LIVE DEMO URL
 
-In the open palette, the suggested sites are listed as "Connect <address>" rows. Click the row for
-`localhost:4105` (Reelhouse) and press Esc once it says "+4 capabilities". Then press Ctrl K and click
-`localhost:4106` (Patchbay), then `localhost:4107` (Foreman), then `localhost:4103` (Loudhailer), with Esc
-after each. If you close the palette first, the empty page shows the same sites by name and colour:
-click **Reelhouse** there, then use Ctrl K for the rest. Do not use "Connect all" here: it also
-connects Tagforge and Pagewright, which this story does not need.
+## Optional cuts
 
-Watch the logo in the top left: its missing centre piece drops in when the first site connects.
+Use these to replace a beat, or in a longer cut that is not the submission video.
 
-What appears: four numbered steps, in story order: 1 Reelhouse, 2 Patchbay, 3 Foreman, 4 Loudhailer.
-The plan line under the outcome lists them. Each site has its own colour chip.
+- **Wrong name fails closed (5 s).** Paste `<Pagewright URL>/wrongname`. The palette says the site
+  has no network named "wrongname" and adds nothing.
+- **Deny a write (6 s).** On a site's sheet, click **Deny**. The card says **Denied**, and nothing
+  reaches the site.
+- **The reply to the viewer (8 s).** Approve Reelhouse's **Reply to comment**. The receipt links to the
+  reply under the video.
+- **Manual mode (8 s).** Delete or deselect the profile. The outcome line says "Manual mode. No key, so
+  Mosaic plans the steps by keyword". The runbook still plans the steps, with no model call.
+- **Recipe link (8 s).** Ctrl K, **Copy recipe link**. Open the link in a new window. The outcome and
+  the sites come back, and each site asks for consent again. The link holds no key.
+- **Scout's write (12 s).** In the Corkboard step, reply to thread 1. **Open Corkboard to approve**
+  shows Scout's sheet: "Scout will do this in a browser on <Corkboard host>. <Corkboard host> did not
+  publish this action." Approve, then open the thread: the reply is there.
 
-> "Four sites I already use. Each one tells Mosaic what it can do."
+## Local rehearsal
 
-### 3. Read the comments (0:21 to 0:31)
-
-- In step 1, click **Run** on **Read comments**. A table of six comments appears.
-- Click **Run** on **Find bug reports**. It returns the title **Connect button does nothing on Safari**,
-  the body, and comment **c-2042** by **@tomasz_k**.
-
-> "Six comments. One of them is a bug report. On Safari, the connect button does nothing."
-
-### 4. Turn it into an issue (0:31 to 0:39)
-
-- Scroll to step 2. **Preview issue** already shows two tokens: title and description, both from
-  Reelhouse. Nobody linked them.
-- Click **Run**. The issue appears as **#43**, label bug, milestone **v1.0.1**.
-
-> "I didn't copy anything. The title and the body are already here."
-
-### 5. Plan the fix (0:39 to 0:49)
-
-- Step 3. **Plan fix** takes the issue from Patchbay. Click **Run**.
-- The plan appears: cause, change, test, files, and the branch **fix/connect-button-safari**. Under it:
-  task, summary and a reply for the viewer.
-- Point at the **summary** token at the bottom of the step. A wire draws to step 4.
-
-> "Foreman plans the fix for an agent on one of my own servers."
-
-### 6. Draft the post (0:49 to 0:55)
-
-- Step 4. **Draft announcement** shows: project Mosaic (from the outcome), version from Patchbay,
-  release notes from Foreman. Click **Run**.
-- The post reads: **Introducing Mosaic v1.0.1.** Fixed #43, with thanks to @tomasz_k.
-
-> "The post writes itself from the fix."
-
-### 7. Approve four changes (0:55 to 1:15)
-
-- Click **Review** in the bar at the bottom (or Ctrl Enter). Four changes are waiting.
-- Approve them in story order, each with its own **Approve on ...** button. Each site shows its own
-  sheet, in its own style. Wait for the Approve fill, then click Approve.
-  1. **File bug**, on Patchbay. The sheet shows the title and the description from the comment.
-     Receipt: issue 43, with a link.
-  2. **Send agent to fix**, on Foreman. The sheet shows the task, server **gpu-01** and the branch.
-     Receipt: **run-412**, running on gpu-01, links to the pull request and the log.
-  3. **Schedule announcement**, on Loudhailer. The sheet shows the post. Receipt: **post-1**.
-  4. **Reply to comment**, on Reelhouse. The sheet shows comment c-2042 and the reply: "Thanks
-     @tomasz_k, you found a real bug..." Receipt: a link to the reply under the video.
-
-> "Every change is approved on the site's own sheet. The issue. The agent. The post. The reply."
-
-### 8. Close (1:15 to 1:22)
-
-- Hold on the finished runbook. The top bar still says **Mosaic unchanged**.
-
-> "The bug report was sitting in my comments the whole time. The missing piece was always in front of us."
-
-## The 30-second cut
-
-Same setup. Type faster, skip Read comments and the hover.
-
-| Time | Do | Say |
-|---|---|---|
-| 0:00 | Type **Fix the bug in Mosaic from my comments and post the fix**. Enter. | "A viewer found a bug." |
-| 0:03 | In the palette click the suggested `4105`; then Ctrl K for `4106`, `4107`, `4103`. Esc. | "Four sites I already use." |
-| 0:10 | Run **Find bug reports**, **Preview issue**, **Plan fix**, **Draft announcement**, top to bottom. | "Comment, issue, fix, post. Nothing copied." |
-| 0:18 | Review, then **Send all 4 for approval**. Approve each sheet as it opens. They come in step order: the reply on Reelhouse, the issue on Patchbay, the agent on Foreman, the post on Loudhailer. | "Each site asks me itself." |
-| 0:27 | Hold on the finished runbook. | "The missing piece was always in front of us." |
-
-## Extra beat: the forum that publishes nothing (about 25 seconds)
-
-Record it after the main take, or as its own clip. Delete `.scout/` first, so that Scout learns the forum
-on camera.
-
-1. Press Ctrl K and paste `localhost:4109` (Corkboard, an old support forum). Press Enter. Mosaic refuses
-   it: there is no manifest.
-2. Click **Teach Scout this site**. The robot looks around while Scout opens the forum in a browser. After
-   about five seconds: "Scout learned 5 skills": Read threads, Search threads, Start a thread, Read
-   thread, Reply to a thread. Writes say "not run while learning".
-3. The palette connects it. Press Esc. The step has a dashed **Scout** tag.
-4. Type `1` in Thread id and click **Run**. The three posts about the Safari bug appear.
-5. Click **Review**. Thread id is already linked. Type a name and a reply, then click **Approve on
-   Corkboard**. The sheet is Scout's, and it says so: "Scout will do this in a browser on
-   localhost:4109. localhost:4109 did not publish this action." Approve.
-6. Open `localhost:4109/thread/1` in a tab: the reply is there.
-
-> "This forum never heard of Mosaic. Scout read it like I would, and now it's a piece too."
+`bun run dev` serves the same flow on localhost: Mosaic on :4000, Reelhouse :4105, Patchbay :4106,
+Foreman :4107, Loudhailer :4103, Inkpost :4104, Scout :4108, Corkboard :4109. Restart it before each
+take, so the issue is #43 and the agent run is run-412. Delete `.scout/` so that Scout learns
+Corkboard again.
 
 ## If something looks off
 
-- A step says it is waiting for another step: run the steps top to bottom.
-- Project is empty: the outcome must name it with a capital letter, as in "in Mosaic".
-- Numbers higher than #43 or run-412: the servers kept state from an earlier take. Restart `bun run dev`.
-- Corkboard shows under "Learned by Scout" before you teach it: Scout kept the template from an earlier
-  take. Delete `.scout/` and restart.
+- The model skips a site or stops early: rehearse with the same model, or shorten the outcome. Every
+  stop shows a visible problem step. Read it, then run again.
+- No "Open <site> to approve" button: the turn has not reached the write yet, or the site refused the
+  input. Look at the card's output.
+- Numbers higher than #43: a site kept state from an earlier take. Redeploy or wait for a cold start.
+- Corkboard is under "Learned by Scout" before you teach it: Scout kept its template. Delete it and
+  restart Scout.
