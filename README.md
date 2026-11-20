@@ -20,12 +20,28 @@ Needs [Bun](https://bun.sh) 1.4 or later. The end-to-end test also needs Node 24
 
 ```sh
 bun install
-bun run dev        # Mosaic on :4000, demo sites on :4101, :4102, :4103
+bun run dev        # Mosaic on :4000, demo sites on :4101 to :4107
 ```
 
 Open http://localhost:4000 and connect `http://localhost:4101`, then `http://localhost:4102`, then
 `http://localhost:4103` (the empty page offers them as chips). Each port is a different origin, so each
-site is a separate website to the browser. `PORT_BASE=8000 bun run dev` moves everything to 8000/8101-8103.
+site is a separate website to the browser. `PORT_BASE=8000 bun run dev` moves everything to 8000/8101-8107.
+
+The demo sites, all fictional:
+
+| Port | Site | What it does |
+|---|---|---|
+| 4101 | Pagewright | Docs: previews and applies a docs update. |
+| 4102 | Tagforge | Releases: drafts a changelog and publishes a release. |
+| 4103 | Loudhailer | Posts: drafts and schedules a short launch post. |
+| 4104 | Inkpost | Newsletter. Not in the suggestions: it is the site Mosaic has never seen, connected by URL. |
+| 4105 | Reelhouse | Videos: lists videos, reads comments, finds bug reports, replies to a comment. |
+| 4106 | Patchbay | Code issues: lists, previews and files issues. |
+| 4107 | Foreman | Agents on your own servers: plans a fix and sends an agent to make it. |
+
+Reelhouse, Patchbay, Foreman and Loudhailer tell one story: a bug report in the comments becomes an
+issue, an agent fixes it, a post goes out, and the commenter gets a reply. The click-by-click script is
+in [docs/demo-script.md](docs/demo-script.md).
 
 ```sh
 bun run typecheck
@@ -78,7 +94,7 @@ The parts:
 | `src/form.ts` | The capability-to-UI compiler: JSON Schema to form fields, and form values back to typed input. |
 | `src/host/` | The Mosaic workspace (React) and the host end of the bridge. A thin shell (`app.tsx`) mounts three areas, `runbook/`, `entry/` and `review/`, over one store (`state/`) and shared primitives (`primitives/`). See [docs/design.md](docs/design.md). |
 | `providers/site.ts`, `providers/bridge.ts` | A small kit that makes any site Mosaic-compatible: manifest, bridge page, guarded API. |
-| `providers/{docs,releases,announcer}.ts` | Three fictional demo sites: Pagewright (docs), Tagforge (releases), Loudhailer (announcements). |
+| `providers/{docs,releases,announcer,newsletter,videos,issues,agents}.ts` | Seven fictional demo sites (see the table under "Run it"). |
 | `src/host/doc.ts` | Runbook logic: markdown and diff models, the outcome sentence, field bindings. |
 | `src/host/hue.ts` | Site hues: host-assigned from the origin, kept out of the red, amber, green and accent bands. |
 

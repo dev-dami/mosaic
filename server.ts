@@ -4,8 +4,19 @@ import { docsSite } from "./providers/docs";
 import { releasesSite } from "./providers/releases";
 import { announcerSite } from "./providers/announcer";
 import { newsletterSite } from "./providers/newsletter";
+import { videosSite } from "./providers/videos";
+import { issuesSite } from "./providers/issues";
+import { agentsSite } from "./providers/agents";
 
-const sites: Record<string, SiteDefinition> = { docs: docsSite, releases: releasesSite, announcer: announcerSite, newsletter: newsletterSite };
+const sites: Record<string, SiteDefinition> = {
+  docs: docsSite,
+  releases: releasesSite,
+  announcer: announcerSite,
+  newsletter: newsletterSite,
+  videos: videosSite,
+  issues: issuesSite,
+  agents: agentsSite,
+};
 const role = process.env.MOSAIC_ROLE ?? "host";
 
 if (role === "host") await import("./src/host/server");

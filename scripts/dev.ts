@@ -1,10 +1,14 @@
-// Starts Mosaic and the three demo sites, each on its own origin (port).
+// Starts Mosaic and every demo site, each on its own origin (ports base+101 to base+107).
+// Inkpost (newsletter) stays out of the suggestions on purpose: it is the "site Mosaic has never
+// seen", connected by typing its URL.
 const base = Number(process.env.PORT_BASE ?? 4000);
 const host = `http://localhost:${base}`;
-const sites = ["docs", "releases", "announcer"].map((name, i) => ({ file: `providers/${name}.ts`, port: base + 101 + i }));
+const names = ["docs", "releases", "announcer", "newsletter", "videos", "issues", "agents"];
+const sites = names.map((name, i) => ({ name, file: `providers/${name}.ts`, port: base + 101 + i }));
+const suggest = sites.filter((s) => s.name !== "newsletter").map((s) => `http://localhost:${s.port}`);
 const procs = [
   Bun.spawn(["bun", "src/host/server.ts"], {
-    env: { ...process.env, PORT: String(base), MOSAIC_SUGGEST: sites.map((s) => `http://localhost:${s.port}`).join(",") },
+    env: { ...process.env, PORT: String(base), MOSAIC_SUGGEST: suggest.join(",") },
     stdout: "inherit",
     stderr: "inherit",
   }),
