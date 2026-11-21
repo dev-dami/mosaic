@@ -7,12 +7,11 @@
 import { ArrowRightIcon, CheckIcon } from "@phosphor-icons/react";
 import { motion } from "motion/react";
 import { useState, type FormEvent } from "react";
-import type { CruseComponent, TurnInteraction } from "../agentic/turn";
+import type { ChoiceOption, CruseComponent, TurnInteraction } from "../agentic/turn";
 import { Button } from "../primitives";
 import { useMosaic } from "../state";
 import { humanKey, Markdown } from "./output";
 
-type Option = { title?: string; value?: unknown; subtitle?: string; meta?: string };
 type FieldSpec = { type?: string; title?: string; description?: string; enum?: unknown[]; items?: { enum?: unknown[] }; default?: unknown };
 type Answer = { text: string; data: Record<string, unknown> };
 type Values = Record<string, string | boolean | string[]>;
@@ -109,12 +108,12 @@ function Widget({ c, locked, picked, onSubmit }: { c: CruseComponent; locked: bo
 }
 
 function Choice({ c, locked, picked, onSubmit }: { c: CruseComponent; locked: boolean; picked: TurnInteraction | null; onSubmit: (a: Answer) => void }) {
-  const options = ((c.options as Option[]) ?? []).filter((o) => o && (o.title || o.value != null));
+  const options = (c.options as ChoiceOption[]) ?? []; // normalized in agentic/turn.ts
   const prefix = text(c.choosePrefix) || "I'll go with";
   return (
     <div className="choice-list" role="group" aria-label={c.title || "Choose one"}>
       {options.map((o, i) => {
-        const value = o.value ?? o.title;
+        const value = o.value;
         const on = !!picked && JSON.stringify(picked.value) === JSON.stringify(value);
         return (
           <button
@@ -123,10 +122,10 @@ function Choice({ c, locked, picked, onSubmit }: { c: CruseComponent; locked: bo
             className={`choice-opt ${on ? "on" : ""}`}
             aria-pressed={on}
             aria-disabled={locked || undefined}
-            onClick={() => !locked && onSubmit({ text: `${prefix}: ${text(o.title ?? o.value)}`, data: { value } })}
+            onClick={() => !locked && onSubmit({ text: `${prefix}: ${o.title}`, data: { value } })}
           >
             <span className="choice-main">
-              <span className="choice-title">{text(o.title ?? o.value)}</span>
+              <span className="choice-title">{o.title}</span>
               {o.subtitle && <span className="choice-sub">{o.subtitle}</span>}
             </span>
             {o.meta && <span className="choice-meta">{o.meta}</span>}

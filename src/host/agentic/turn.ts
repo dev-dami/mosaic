@@ -99,14 +99,42 @@ export function startTurn(outcome: string, interaction?: TurnInteraction, now = 
   return { outcome, interaction, startedAt: now, steers: [], components: [], status: "running", steps: [], narration: "", runId: null, spans: {} };
 }
 
-/** The components of a CRUSE presentation that Mosaic renders (see CruseComponent). */
+/** A choice option as Mosaic draws it. */
+export type ChoiceOption = { title: string; value: unknown; subtitle?: string; meta?: string };
+
+const words = (v: unknown) => (typeof v === "string" ? v.trim() : typeof v === "number" ? String(v) : "");
+
+/**
+ * A choice's options with a label each. The runtime's render_cruse tool does not describe option
+ * fields to the model, so a model may write label, text or name for title, and id for value.
+ */
+export function choiceOptions(options: unknown): ChoiceOption[] {
+  if (!Array.isArray(options)) return [];
+  return options.flatMap((o): ChoiceOption[] => {
+    if (typeof o === "string" || typeof o === "number") return words(o) ? [{ title: words(o), value: o }] : [];
+    if (!o || typeof o !== "object") return [];
+    const r = o as Record<string, unknown>;
+    const title = words(r.title) || words(r.label) || words(r.text) || words(r.name) || words(r.value) || words(r.id);
+    if (!title) return [];
+    const subtitle = words(r.subtitle) || words(r.description) || undefined;
+    const meta = words(r.meta) || undefined;
+    return [{ title, value: r.value ?? r.id ?? title, ...(subtitle ? { subtitle } : {}), ...(meta ? { meta } : {}) }];
+  });
+}
+
+/** The components of a CRUSE presentation that Mosaic renders (see CruseComponent). Empty ones are dropped. */
 export function renderedComponents(presentation: unknown): CruseComponent[] {
   const list = (presentation as { components?: unknown } | null | undefined)?.components;
   if (!Array.isArray(list)) return [];
-  return list.filter((c): c is CruseComponent => {
-    if (!c || typeof c !== "object") return false;
-    const { id, kind, submit } = c as { id?: unknown; kind?: unknown; submit?: unknown };
-    return typeof id === "string" && typeof kind === "string" && RENDERED_KINDS.has(kind) && !submit;
+  return list.flatMap((c): CruseComponent[] => {
+    if (!c || typeof c !== "object") return [];
+    const comp = c as CruseComponent & { submit?: unknown };
+    if (typeof comp.id !== "string" || typeof comp.kind !== "string" || !RENDERED_KINDS.has(comp.kind) || comp.submit) return [];
+    if (comp.kind === "choice") {
+      const options = choiceOptions(comp.options);
+      return options.length ? [{ ...comp, options }] : [];
+    }
+    return [comp];
   });
 }
 

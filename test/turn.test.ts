@@ -150,6 +150,17 @@ describe("agent turn mapping", () => {
     expect(renderedComponents(null)).toEqual([]);
     expect(renderedComponents({ components: [{ kind: "choice" }] })).toEqual([]); // no id
   });
+
+  test("choice options a model wrote with label, text, name or id still get a title; a choice with none is dropped", () => {
+    const [c] = renderedComponents({ components: [{ id: "a", kind: "choice", options: [{ label: "Post now", id: "now" }, { text: "Later" }, "Skip", { name: "Ask me", description: "Hold it" }, {}] }] });
+    expect(c!.options).toEqual([
+      { title: "Post now", value: "now" },
+      { title: "Later", value: "Later" },
+      { title: "Skip", value: "Skip" },
+      { title: "Ask me", value: "Ask me", subtitle: "Hold it" },
+    ]);
+    expect(renderedComponents({ components: [{ id: "b", kind: "choice", options: [{}, { meta: "x" }] }] })).toEqual([]);
+  });
 });
 
 describe("the conversation thread (state/reducer.ts)", () => {
