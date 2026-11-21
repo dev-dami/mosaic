@@ -38,6 +38,11 @@ describe("the Mosaic host network", () => {
     expect(validateNetwork(net).errors).toEqual([]);
   });
 
+  test("turns on CRUSE, so the front agent can answer with a choice or confirm", () => {
+    expect(net.config.cruse).toBe(true);
+    expect(net.getAgentSpec("mosaic")?.instructions).toContain("render_cruse");
+  });
+
   test("has a front agent mosaic and an internal agent composer", () => {
     const names = (network.tools as { name: string }[]).map((t) => t.name);
     expect(names.length).toBeGreaterThanOrEqual(2);

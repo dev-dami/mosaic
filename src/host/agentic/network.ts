@@ -68,6 +68,9 @@ export function buildHostNetwork({ sites }: HostNetworkConfig) {
   const network = {
     metadata: { description, sample_queries: sampleQueries },
     llm_config: { model_name: DEFAULT_MODEL },
+    // CRUSE (vendor cruse.js): the front agent may answer with a choice, a confirm or a short form,
+    // which Mosaic renders under the answer (runbook/widgets.tsx). Widgets only collect answers.
+    cruse: true,
     link_slots: Object.fromEntries(slots.map((s) => [s, {}])),
     link_labels: Object.fromEntries(sites.map((s) => [s.slug, label(s.slug)])),
     tools: [
@@ -81,6 +84,10 @@ export function buildHostNetwork({ sites }: HostNetworkConfig) {
           "Never invent sites: use only the linked site tools you are given.",
           `Ask ${COMPOSER_AGENT} to draft any text that passes from one site to another, then hand that draft to the next site.`,
           "Every write happens on the site itself, after the person approves it there.",
+          "When you stop because the person must decide something (which item, whether to go on after an approval, a missing detail), end with a render_cruse choice, confirm or short form instead of a question in prose.",
+          'Component shapes: {"kind":"choice","id":"…","title":"…","options":[{"title":"…","value":"…","subtitle":"…"}]}; {"kind":"confirm","id":"…","confirmText":"…","confirmLabel":"…","cancelLabel":"…"}; {"kind":"form","id":"…","title":"…","schema":{"properties":{"name":{"type":"string","title":"…"}},"required":["name"]}}.',
+          "Say in your answer that the choices are below it.",
+          "A widget only collects the answer: never use one to stand in for a website tool or its approval.",
         ].join(" "),
         tools: [...slots, COMPOSER_AGENT],
         allow: { to_downstream: { sly_data: [...DOWNSTREAM_SLY_DATA] } },

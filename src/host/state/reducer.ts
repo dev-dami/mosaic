@@ -3,6 +3,8 @@ import { hueOfColor, siteHue } from "../hue";
 import { applyTrace, applyTurnEvent, settleTurn, startTurn, stopTurn } from "../agentic/turn";
 import type { Action, ConnectStage, State, Trace, TraceStage } from "./types";
 
+/** Earlier turns kept on the page. The runtime keeps its own, shorter history (engine.js: 24 entries). */
+const MAX_THREAD = 20;
 const STAGES: ConnectStage[] = ["consent", "manifest", "network", "validate", "bridge", "build"];
 
 export const initialState: State = {
@@ -27,6 +29,7 @@ export const initialState: State = {
   hot: null,
   pulse: null,
   turn: null,
+  thread: [],
 };
 
 /** Replace the last stage of the trace for `origin` (the one in progress) and append more. */
@@ -172,8 +175,13 @@ export function reducer(state: State, action: Action): State {
     case "ui/hot":
       return { ...state, hot: action.cap };
 
-    case "turn/started":
-      return { ...state, turn: startTurn(action.outcome) };
+    case "turn/started": {
+      const thread = action.followUp && state.turn ? [...state.thread, state.turn].slice(-MAX_THREAD) : [];
+      return { ...state, thread, turn: startTurn(action.outcome, action.interaction) };
+    }
+
+    case "turn/steered":
+      return state.turn?.status === "running" ? { ...state, turn: { ...state.turn, steers: [...state.turn.steers, action.text] } } : state;
 
     case "turn/trace": {
       if (!state.turn) return state;

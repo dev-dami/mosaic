@@ -9,7 +9,8 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { FormError } from "../../form";
 import { connectTarget, outcomeOf, pickNetwork, siteFromEntries, type ActionReceipt, type PublishedManifest, type Site } from "../agentic/catalog";
-import type { ActionRun, MosaicAgent } from "../agentic/engine";
+import type { ActionRun, MosaicAgent, TurnStream } from "../agentic/engine";
+import type { TurnInteraction } from "../agentic/turn";
 import { hostOf, type Binding, type CapKey, type CapRef, capKey } from "../doc";
 import { useAgentEngine } from "../settings";
 import { deriveModel, inputKeys, type Model } from "./model";
@@ -56,6 +57,13 @@ export type Actions = {
    * keyword plan (entry/plan.ts) is the runbook.
    */
   runOutcome: () => Promise<void>;
+  /**
+   * Send the person's message to Mosaic's agent. While a turn runs, it joins that turn (the runtime
+   * reads it before the next model step). Otherwise it starts a follow-up turn of the same
+   * conversation. `interaction` is a widget answer (CRUSE) and goes with the message.
+   * Returns false when nothing was sent (no model, a write in flight, or the turn just closed).
+   */
+  sendMessage: (text: string, interaction?: TurnInteraction) => boolean;
   /** Stop the running turn: no further step starts, and no write window opens. */
   stopTurn: () => void;
 };
@@ -71,9 +79,19 @@ type Store = {
 function createStore(): Store {
   let state = initialState;
   const listeners = new Set<() => void>();
+  // A streamed answer dispatches a turn event per token. Rendering each one inside one task passed
+  // React's nested-update limit ("Maximum update depth exceeded" mid-turn), so turn events reach
+  // React once per task. Every other action renders at once: controlled inputs need that.
+  let pending: ReturnType<typeof setTimeout> | null = null;
+  const notify = () => {
+    if (pending) clearTimeout(pending);
+    pending = null;
+    listeners.forEach((l) => l());
+  };
   const dispatch = (a: Action) => {
     state = reducer(state, a);
-    listeners.forEach((l) => l());
+    if (a.type === "turn/event" || a.type === "turn/trace") pending ??= setTimeout(notify, 0);
+    else notify();
   };
   const getState = () => state;
   let nextKey = 1;
@@ -157,7 +175,7 @@ function createStore(): Store {
    * here, `stopped`, while the runtime drains: no new turn, no manual write and no write window
    * until it has settled. `agent` is the agent that runs it (a model change builds a new one).
    */
-  let liveTurn: { agent: MosaicAgent | null; stopped: boolean } | null = null;
+  let liveTurn: { agent: MosaicAgent | null; stopped: boolean; stream: TurnStream | null } | null = null;
 
   const connForBase = (base: string) => connFor(base.replace(/\/+$/, ""));
 
@@ -211,12 +229,31 @@ function createStore(): Store {
     }
   }
 
-  async function runOutcome() {
+  function runOutcome() {
+    return startTurn(getState().title.trim(), false);
+  }
+
+  function sendMessage(text: string, interaction?: TurnInteraction): boolean {
+    const message = text.trim();
+    if (!message) return false;
+    const live = liveTurn;
+    if (live) {
+      // Widget answers belong to a finished turn; typed text steers the running one.
+      if (interaction || live.stopped || !live.stream?.steer?.(message)) return false;
+      dispatch({ type: "turn/steered", text: message });
+      return true;
+    }
+    if (currentWrite || !getState().turn) return false;
+    void startTurn(message, true, interaction);
+    return true;
+  }
+
+  /** One agent turn. A new outcome (followUp false) starts a new conversation. */
+  async function startTurn(outcome: string, followUp: boolean, interaction?: TurnInteraction) {
     const st = getState();
-    const outcome = st.title.trim();
     // One turn at a time, and not while a write (manual or the agent's) is in flight.
     if (!outcome || liveTurn || currentWrite) return;
-    const live: { agent: MosaicAgent | null; stopped: boolean } = { agent: null, stopped: false };
+    const live: { agent: MosaicAgent | null; stopped: boolean; stream: TurnStream | null } = { agent: null, stopped: false, stream: null };
     liveTurn = live; // before the first await: a double Enter starts one turn
     let started = false;
     try {
@@ -224,25 +261,27 @@ function createStore(): Store {
       try {
         a = await agentReady();
       } catch (e) {
-        dispatch({ type: "turn/started", outcome });
+        dispatch({ type: "turn/started", outcome, followUp, interaction });
         dispatch({ type: "turn/failed", message: e instanceof Error ? e.message : String(e) });
         return;
       }
       if (a.mode !== "model" || live.stopped) return;
       live.agent = a;
+      if (!followUp) a.resetConversation();
       const { project, version } = deriveModel(st).docProps;
       const slyData: Record<string, string> = {};
       if (project) slyData.project = project;
       if (version) slyData.version = version;
-      dispatch({ type: "turn/started", outcome });
+      dispatch({ type: "turn/started", outcome, followUp, interaction });
       started = true;
       // Stream chunks come through the stream's own events; the trace gives the spans.
       const off = a.subscribe((event) => {
         if (!live.stopped && event.phase !== "update") dispatch({ type: "turn/trace", event });
       });
       try {
+        live.stream = a.runTurn(outcome, slyData, interaction);
         // After Stop, keep draining the stream (without showing it) until the runtime settles.
-        for await (const event of a.runTurn(outcome, slyData)) {
+        for await (const event of live.stream) {
           if (!live.stopped) dispatch({ type: "turn/event", event });
         }
       } catch (e) {
@@ -543,6 +582,7 @@ function createStore(): Store {
     },
     setHue: (origin, hue) => dispatch({ type: "site/hue", origin, hue: Math.round(hue) % 360 }),
     runOutcome,
+    sendMessage,
     stopTurn,
   };
 

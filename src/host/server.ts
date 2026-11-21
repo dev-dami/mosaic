@@ -52,6 +52,7 @@ Bun.serve({
     // The vendored nsdeploy browser runtime that runs Mosaic's own agent network.
     ...runtimeRoute,
   },
-  development: !prebuilt && process.env.NODE_ENV !== "production",
+  // No HMR: its module wrapper breaks on the import cycles inside @anthropic-ai/sdk (blank page).
+  development: !prebuilt && process.env.NODE_ENV !== "production" ? { hmr: false } : false,
 });
 console.log(`Mosaic on http://localhost:${port} (build ${build})`);

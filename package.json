@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun scripts/dev.ts",
+    "link": "bun link/main.ts",
     "build:deploy": "bun scripts/build-deploy.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test test",

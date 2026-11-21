@@ -1,0 +1,8 @@
+#!/usr/bin/env bun
+// Fake `codex` for test/link.test.ts: writes the answer to --output-last-message.
+import { writeFileSync } from "node:fs";
+const args = process.argv.slice(2);
+const stdin = await new Response(Bun.stdin.stream()).text();
+if (process.env.FAKE_RECORD) writeFileSync(process.env.FAKE_RECORD, JSON.stringify({ argv: args, stdin, cwd: process.cwd() }));
+const out = args[args.indexOf("--output-last-message") + 1];
+writeFileSync(out, JSON.stringify({ text: "", tool_calls: [{ name: "lookup", arguments: "{\"q\":\"codex\"}" }] }));

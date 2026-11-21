@@ -2,7 +2,9 @@
 // peer steps with capability cards, Mosaic's own composer step, visible problems and a summary.
 import { describe, expect, test } from "bun:test";
 import type { TraceEvent, TurnEvent } from "../src/host/agentic/engine";
-import { applyTrace, applyTurnEvent, composerLabel, previewValue, settleTurn, startTurn, stopTurn, type AgentTurn } from "../src/host/agentic/turn";
+import { applyTrace, applyTurnEvent, composerLabel, previewValue, renderedComponents, settleTurn, startTurn, stopTurn, type AgentTurn } from "../src/host/agentic/turn";
+import { initialState, reducer } from "../src/host/state/reducer";
+import type { State } from "../src/host/state/types";
 
 let seq = 0;
 const ev = (phase: TraceEvent["phase"], kind: string, fields: Record<string, unknown> = {}): TraceEvent => ({ phase, kind, seq: seq++, wall: 0, ...fields });
@@ -127,5 +129,59 @@ describe("agent turn mapping", () => {
     expect(previewValue('{"a":1}')).toEqual({ a: 1 });
     expect(previewValue('{"a":1, "b": "trunc')).toBe('{"a":1, "b": "trunc');
     expect(previewValue(undefined)).toBeUndefined();
+  });
+
+  test("completion keeps the turn id and the widgets Mosaic renders, never actions, html or forms that submit", () => {
+    const presentation = {
+      version: 1,
+      components: [
+        { id: "where", kind: "choice", title: "Where?", options: [{ title: "Loudhailer", value: "lh" }] },
+        { id: "ok", kind: "confirm", confirmText: "Go on?" },
+        { id: "run", kind: "action", action: "website_publish" },
+        { id: "raw", kind: "html", html: "<b>x</b>" },
+        { id: "pay", kind: "form", schema: { properties: { a: { type: "string" } } }, submit: { actions: ["x"] } },
+        { id: "ask", kind: "form", schema: { properties: { a: { type: "string" } } } },
+      ],
+    };
+    const t = fold([...DEMO, turnEv("turn.completed", { turnId: "s1", result: { text: "Pick one.", turnId: "s1", presentation } })]);
+    expect(t.status).toBe("done");
+    expect(t.turnId).toBe("s1");
+    expect(t.components.map((c) => c.id)).toEqual(["where", "ok", "ask"]);
+    expect(renderedComponents(null)).toEqual([]);
+    expect(renderedComponents({ components: [{ kind: "choice" }] })).toEqual([]); // no id
+  });
+
+  test("choice options a model wrote with label, text, name or id still get a title; a choice with none is dropped", () => {
+    const [c] = renderedComponents({ components: [{ id: "a", kind: "choice", options: [{ label: "Post now", id: "now" }, { text: "Later" }, "Skip", { name: "Ask me", description: "Hold it" }, {}] }] });
+    expect(c!.options).toEqual([
+      { title: "Post now", value: "now" },
+      { title: "Later", value: "Later" },
+      { title: "Skip", value: "Skip" },
+      { title: "Ask me", value: "Ask me", subtitle: "Hold it" },
+    ]);
+    expect(renderedComponents({ components: [{ id: "b", kind: "choice", options: [{}, { meta: "x" }] }] })).toEqual([]);
+  });
+});
+
+describe("the conversation thread (state/reducer.ts)", () => {
+  const done = (outcome: string) => ({ ...startTurn(outcome), status: "done" as const });
+  test("a follow-up keeps the earlier turn in the thread; a new outcome starts over", () => {
+    let s: State = { ...initialState, turn: done("Launch Lumen v1.0") };
+    s = reducer(s, { type: "turn/started", outcome: "Continue", followUp: true });
+    expect(s.thread.map((t) => t.outcome)).toEqual(["Launch Lumen v1.0"]);
+    expect(s.turn?.outcome).toBe("Continue");
+    s = reducer({ ...s, turn: { ...s.turn!, status: "done" } }, { type: "turn/started", outcome: "Pick", followUp: true, interaction: { turnId: "t2", componentId: "where", kind: "choice", value: "lh" } });
+    expect(s.thread.map((t) => t.outcome)).toEqual(["Launch Lumen v1.0", "Continue"]);
+    expect(s.turn?.interaction?.value).toBe("lh");
+    s = reducer(s, { type: "turn/started", outcome: "Announce Atlas v3.0" });
+    expect(s.thread).toEqual([]);
+    expect(s.turn?.outcome).toBe("Announce Atlas v3.0");
+  });
+  test("a line added mid-turn joins the running turn only", () => {
+    let s = reducer(initialState, { type: "turn/started", outcome: "Launch" });
+    s = reducer(s, { type: "turn/steered", text: "Skip the docs" });
+    expect(s.turn?.steers).toEqual(["Skip the docs"]);
+    s = reducer({ ...s, turn: { ...s.turn!, status: "done" } }, { type: "turn/steered", text: "late" });
+    expect(s.turn?.steers).toEqual(["Skip the docs"]);
   });
 });

@@ -117,7 +117,10 @@ function ReadBlock({ r, showTitle }: { r: CapRef; showTitle: boolean }) {
   const [kept, setKept] = useState<string[]>(needing);
   const needKey = needing.join("|");
   useEffect(() => {
-    setKept((k) => [...new Set([...k, ...needing])].filter((key) => !model.bindingFor(r.key, key)));
+    setKept((k) => {
+      const next = [...new Set([...k, ...needing])].filter((key) => !model.bindingFor(r.key, key));
+      return next.length === k.length && next.every((key, i) => key === k[i]) ? k : next;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [needKey, model]);
   const doneAt = run.status === "done" ? run.at.getTime() : 0;

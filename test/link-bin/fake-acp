@@ -1,0 +1,40 @@
+#!/usr/bin/env bun
+// Fake ACP agent for test/link.test.ts: newline-delimited JSON-RPC on stdio.
+// On session/prompt it asks for a permission, records the answer, then streams the step.
+import { appendFileSync } from "node:fs";
+const record = (o) => process.env.FAKE_RECORD && appendFileSync(process.env.FAKE_RECORD, JSON.stringify(o) + "\n");
+const send = (o) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...o }) + "\n");
+let pendingPrompt = null;
+let buf = "";
+const dec = new TextDecoder();
+for await (const chunk of Bun.stdin.stream()) {
+  buf += dec.decode(chunk, { stream: true });
+  let nl;
+  while ((nl = buf.indexOf("\n")) >= 0) {
+    const msg = JSON.parse(buf.slice(0, nl));
+    buf = buf.slice(nl + 1);
+    record({ got: msg.method ?? "response", params: msg.params, result: msg.result, error: msg.error });
+    if (msg.method === "initialize") send({ id: msg.id, result: { protocolVersion: 1, agentCapabilities: {}, authMethods: [] } });
+    else if (msg.method === "session/new") send({ id: msg.id, result: { sessionId: "s1", configOptions: [{ id: "model", name: "Model", category: "model", type: "select", currentValue: "default", options: [] }] } });
+    else if (msg.method === "session/set_config_option") send({ id: msg.id, result: { configOptions: [] } });
+    else if (msg.method === "session/prompt") {
+      if (process.env.FAKE_MODE === "sleep") {
+        appendFileSync(process.env.FAKE_PID, String(process.pid));
+        continue;
+      }
+      pendingPrompt = msg.id;
+      send({ id: 900, method: "session/request_permission", params: { sessionId: "s1", toolCall: { toolCallId: "t1", title: "Run rm" }, options: [
+        { optionId: "yes", name: "Allow", kind: "allow_once" },
+        { optionId: "no", name: "Reject", kind: "reject_once" },
+      ] } });
+      send({ id: 901, method: "fs/read_text_file", params: { sessionId: "s1", path: "/etc/passwd" } });
+    } else if (msg.id === 901 && pendingPrompt !== null) {
+      const step = JSON.stringify({ text: "acp says hi", tool_calls: [{ name: "lookup", arguments: "{\"q\":\"acp\"}" }] });
+      send({ method: "session/update", params: { sessionId: "s1", update: { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: "thinking..." } } } });
+      send({ method: "session/update", params: { sessionId: "s1", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: step.slice(0, 10) } } } });
+      send({ method: "session/update", params: { sessionId: "s1", update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: step.slice(10) } } } });
+      send({ id: pendingPrompt, result: { stopReason: "end_turn" } });
+      pendingPrompt = null;
+    }
+  }
+}

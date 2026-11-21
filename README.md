@@ -12,9 +12,10 @@ Mosaic is an entry for the Open Agentic Web Challenge. It follows the agentic-we
 ## Try it
 
 1. Open the live demo: `TODO(verify): host URL after the deploy.`
-2. Click **AI model** in the top bar. Add a router, a model and your key (Otari is the default). Your
-   key goes only to that router. With no key, Mosaic runs in manual mode and plans the steps without a
-   model.
+2. Click **AI model** in the top bar and pick a preset: **Otari** (the default), **OpenAI**,
+   **Claude** (Anthropic's Messages API) or **Agent on this computer** (Claude Code or Codex through
+   Mosaic Link, no API key). Your key goes only to that router. With no key, Mosaic runs in manual
+   mode and plans the steps without a model.
 3. Type an outcome, for example **Fix the bug in Mosaic from my comments and post the fix**, and click
    **Run with the agent**. Allow each site when Mosaic asks. Approve each write in the site's own
    window.
@@ -27,6 +28,18 @@ bun run dev        # Mosaic on :4000, demo sites on :4101 to :4107, Scout on :41
 ```
 
 Open http://localhost:4000. `PORT_BASE=8000 bun run dev` moves every port to 8000 and up.
+
+## Models
+
+| Preset | Router | How Mosaic calls it |
+|---|---|---|
+| Otari | `https://api.otari.ai/api/v1` | The runtime's own client (OpenAI chat format). |
+| OpenAI | `https://api.openai.com/v1` | The runtime's own client. |
+| Claude | `https://api.anthropic.com` | `src/host/agentic/claude-client.ts`: the official `@anthropic-ai/sdk`, Messages API, from the browser. Thinking is replayed unchanged across tool steps. |
+| Agent on this computer | `http://127.0.0.1:4199/v1` | Mosaic Link (`bun run link`, `link/`): drives Claude Code headless with its tools off. Codex and ACP agents need `--enable codex,acp`. See [docs/local-agents.md](docs/local-agents.md). |
+
+The runtime keeps the loop, the consent dialogs and the site approvals in every case. The model only
+picks the next step.
 
 ## How it works on the sponsor's spec
 

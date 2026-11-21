@@ -6,21 +6,50 @@
 // in plain words. Writes still wait for the site's own approval window (review/approval.tsx).
 import { CheckIcon, PenNibIcon, StopIcon, WarningIcon } from "@phosphor-icons/react";
 import { capKey, hostOf } from "../doc";
-import { composerLabel, previewValue, type TurnCard, type TurnStep } from "../agentic/turn";
+import { composerLabel, previewValue, type AgentTurn, type TurnCard, type TurnStep } from "../agentic/turn";
 import { Banner, Button, Provenance, Tag, useHueStyle } from "../primitives";
 import { useMosaic } from "../state";
+import { Composer } from "./composer";
 import { humanKey, Markdown, OutputView } from "./output";
+import { TurnWidgets } from "./widgets";
 
 const two = (n: number) => String(n).padStart(2, "0");
 
 export function AgentRunbook() {
-  const { state, actions } = useMosaic();
+  const { state } = useMosaic();
   const turn = state.turn;
   if (!turn) return null;
+  const all = [...state.thread, turn];
+  return (
+    <div className="agent-thread" aria-label="Conversation with Mosaic's agent">
+      {all.map((t, i) => (
+        <TurnView key={`${i}:${t.startedAt}`} turn={t} first={i === 0} latest={i === all.length - 1} next={all[i + 1]} />
+      ))}
+      <Composer />
+    </div>
+  );
+}
+
+/** What the person said to start a follow-up turn: their text, or the widget answer they clicked. */
+function YouSaid({ turn }: { turn: AgentTurn }) {
+  return (
+    <div className={`you-said ${turn.interaction ? "picked" : ""}`}>
+      <span className="you-label">You</span>
+      <p>{turn.outcome}</p>
+    </div>
+  );
+}
+
+function TurnView({ turn, first, latest, next }: { turn: AgentTurn; first: boolean; latest: boolean; next?: AgentTurn }) {
+  const { actions } = useMosaic();
   const running = turn.status === "running";
+  // A widget is live on the latest finished turn only; a later turn locks it, showing its answer.
+  const answered = next?.interaction && next.interaction.turnId === turn.turnId ? next.interaction : undefined;
   let n = 0;
   return (
-    <section className={`agent-turn ${turn.status}`} aria-label="Agent runbook" aria-busy={running}>
+    <>
+      {!first && <YouSaid turn={turn} />}
+      <section className={`agent-turn ${turn.status} ${latest ? "latest" : "earlier"}`} aria-label="Agent runbook" aria-busy={running}>
       <header className="agent-turn-head">
         <span className="label">Mosaic's agent</span>
         <span className="agent-turn-status" role="status">
@@ -46,6 +75,15 @@ export function AgentRunbook() {
         })}
         {running && turn.steps.length === 0 && <li className="agent-step pending">Planning the steps…</li>}
       </ol>
+      {turn.steers.length > 0 && (
+        <ul className="agent-steers" aria-label="What you added during this turn">
+          {turn.steers.map((t, i) => (
+            <li key={i}>
+              <span className="you-label">You added</span> {t}
+            </li>
+          ))}
+        </ul>
+      )}
       {turn.status === "failed" && (
         <Banner tone="danger" icon={<WarningIcon />} role="alert" className="agent-error">
           {turn.error}
@@ -64,7 +102,9 @@ export function AgentRunbook() {
           <Markdown source={turn.answer} />
         </div>
       )}
-    </section>
+      {turn.status === "done" && turn.turnId && <TurnWidgets components={turn.components} turnId={turn.turnId} live={latest} answered={answered} />}
+      </section>
+    </>
   );
 }
 

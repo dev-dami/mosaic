@@ -48,8 +48,37 @@ export type TurnStep =
   /** Something the runtime refused or skipped: over budget, a cycle, a declined or unreachable site. */
   | { kind: "problem"; id: string; target: string; message: string };
 
+/**
+ * One CRUSE component the agent returned with its answer (vendor cruse.js, already normalized by the
+ * runtime). Mosaic renders the kinds in RENDERED_KINDS only: "action" components and forms with
+ * submit.actions would run a website write outside the site's own approval window, "html" is
+ * model-written markup, and "chart" has no Mosaic view yet.
+ */
+export type CruseComponent = {
+  id: string;
+  kind: string;
+  title?: string;
+  description?: string;
+  [field: string]: unknown;
+};
+export const RENDERED_KINDS = new Set(["choice", "confirm", "form", "info", "table", "report"]);
+
+/** What a widget click sends back with the next turn (vendor ui.js renderWidget). */
+export type TurnInteraction = { turnId: string; componentId: string; kind: string; [field: string]: unknown };
+
 export type AgentTurn = {
+  /** The person's message that started this turn: the outcome, or a follow-up. */
   outcome: string;
+  /** The widget answer this turn's message carries, when it came from a click. */
+  interaction?: TurnInteraction;
+  /** Wall-clock start (ms): approvals after it count as this turn's. */
+  startedAt: number;
+  /** Lines the person added while the turn ran (Engine.streamTurn steer). */
+  steers: string[];
+  /** The runtime's turn id (its run span), for widget answers. */
+  turnId?: string;
+  /** The widgets the agent returned with its answer, rendered kinds only. */
+  components: CruseComponent[];
   status: "running" | "done" | "failed" | "stopped";
   /** The model and router host of the first model call: observable execution (spec §5). */
   model?: { name: string; routerHost: string };
@@ -66,8 +95,47 @@ export type AgentTurn = {
   spans: Record<string, { kind: string; parent: string | null; tool?: string; network?: string }>;
 };
 
-export function startTurn(outcome: string): AgentTurn {
-  return { outcome, status: "running", steps: [], narration: "", runId: null, spans: {} };
+export function startTurn(outcome: string, interaction?: TurnInteraction, now = Date.now()): AgentTurn {
+  return { outcome, interaction, startedAt: now, steers: [], components: [], status: "running", steps: [], narration: "", runId: null, spans: {} };
+}
+
+/** A choice option as Mosaic draws it. */
+export type ChoiceOption = { title: string; value: unknown; subtitle?: string; meta?: string };
+
+const words = (v: unknown) => (typeof v === "string" ? v.trim() : typeof v === "number" ? String(v) : "");
+
+/**
+ * A choice's options with a label each. The runtime's render_cruse tool does not describe option
+ * fields to the model, so a model may write label, text or name for title, and id for value.
+ */
+export function choiceOptions(options: unknown): ChoiceOption[] {
+  if (!Array.isArray(options)) return [];
+  return options.flatMap((o): ChoiceOption[] => {
+    if (typeof o === "string" || typeof o === "number") return words(o) ? [{ title: words(o), value: o }] : [];
+    if (!o || typeof o !== "object") return [];
+    const r = o as Record<string, unknown>;
+    const title = words(r.title) || words(r.label) || words(r.text) || words(r.name) || words(r.value) || words(r.id);
+    if (!title) return [];
+    const subtitle = words(r.subtitle) || words(r.description) || undefined;
+    const meta = words(r.meta) || undefined;
+    return [{ title, value: r.value ?? r.id ?? title, ...(subtitle ? { subtitle } : {}), ...(meta ? { meta } : {}) }];
+  });
+}
+
+/** The components of a CRUSE presentation that Mosaic renders (see CruseComponent). Empty ones are dropped. */
+export function renderedComponents(presentation: unknown): CruseComponent[] {
+  const list = (presentation as { components?: unknown } | null | undefined)?.components;
+  if (!Array.isArray(list)) return [];
+  return list.flatMap((c): CruseComponent[] => {
+    if (!c || typeof c !== "object") return [];
+    const comp = c as CruseComponent & { submit?: unknown };
+    if (typeof comp.id !== "string" || typeof comp.kind !== "string" || !RENDERED_KINDS.has(comp.kind) || comp.submit) return [];
+    if (comp.kind === "choice") {
+      const options = choiceOptions(comp.options);
+      return options.length ? [{ ...comp, options }] : [];
+    }
+    return [comp];
+  });
 }
 
 const str = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : JSON.stringify(v));
@@ -219,8 +287,17 @@ export function applyTurnEvent(turn: AgentTurn, ev: TurnEvent): AgentTurn {
   switch (ev.type) {
     case "agent.output.delta":
       return ev.visibility === "user" && ev.delta ? { ...turn, narration: turn.narration + ev.delta } : turn;
-    case "turn.completed":
-      return { ...turn, status: "done", answer: ev.result?.text ?? turn.narration, steps: settle(turn.steps) };
+    case "turn.completed": {
+      const result = ev.result as { text?: string; turnId?: string; presentation?: unknown } | undefined;
+      return {
+        ...turn,
+        status: "done",
+        answer: result?.text ?? turn.narration,
+        turnId: result?.turnId ?? ev.turnId ?? turn.runId ?? undefined,
+        components: renderedComponents(result?.presentation),
+        steps: settle(turn.steps),
+      };
+    }
     case "turn.failed":
       return { ...turn, status: "failed", error: turnError(turn, ev.error || "The turn failed."), steps: settle(turn.steps) };
     default:

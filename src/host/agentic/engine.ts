@@ -5,6 +5,7 @@
 // profile; with no key Mosaic runs in manual mode and makes no model call at all.
 import type { ActionReceipt, ActionRegistry, RegistryEntry } from "./catalog";
 import { COMPOSER_AGENT, DEFAULT_MODEL, OTARI_ROUTER, SPARE_SLOTS } from "./network";
+import { ClaudeLlmClient, isAnthropicRouter } from "./claude-client";
 
 export const RUNTIME_ENGINE_URL = "/runtime/engine.js";
 /** What Mosaic allows per turn. The demo chain needs five or more peer calls. */
@@ -45,6 +46,9 @@ export interface TraceEvent {
   [field: string]: unknown;
 }
 
+/** Engine.streamTurn's stream: its events, and steer(text) while the turn runs (false once it closed). */
+export type TurnStream = AsyncIterable<TurnEvent> & { steer?: (text: string) => boolean };
+
 /** One public event of Engine.streamTurn (execution-stream.js). */
 export interface TurnEvent {
   type: string;
@@ -53,7 +57,7 @@ export interface TurnEvent {
   parentId: string | null;
   delta?: string;
   error?: string;
-  result?: { text: string; turnId?: string };
+  result?: { text: string; turnId?: string; presentation?: unknown };
   visibility?: "user" | "developer";
   [field: string]: unknown;
 }
@@ -84,8 +88,13 @@ export interface RuntimeEngine {
   requestConsent(info: ConsentRequest): Promise<"allow" | "decline">;
   resolveRemote(ref: string, chain: string[], parentSpan: string | null): Promise<{ network: { name: string }; base: string }>;
   runTurn(text: string, opts: { slyData?: Record<string, unknown> }): Promise<{ text: string }>;
-  streamTurn(text: string, opts?: { slyData?: Record<string, unknown> }): AsyncIterable<TurnEvent>;
+  streamTurn(text: string, opts?: { slyData?: Record<string, unknown>; interaction?: unknown }): TurnStream;
+  /** Forget the conversation: the next turn starts with no history (engine.js resetHistory). */
+  resetHistory(): void;
   _makeCtx(args: unknown): unknown;
+  /** Compiles one network and makes its model client (engine.js). MosaicEngine swaps the client for Claude. */
+  _compile(...args: unknown[]): Promise<{ llm: { baseUrl: string } }>;
+  byokKey: string;
 }
 
 export interface EngineOptions {
@@ -155,6 +164,9 @@ export function makeMosaicEngineClass(Engine: RuntimeModule["Engine"]): RuntimeM
   if (typeof (Engine.prototype as Partial<RuntimeEngine>)._makeCtx !== "function") {
     throw new Error("The nsdeploy runtime has no Engine._makeCtx; Mosaic's remote-call budget needs it. Check vendor/nsdeploy-runtime.");
   }
+  if (typeof (Engine.prototype as Partial<RuntimeEngine>)._compile !== "function") {
+    throw new Error("The nsdeploy runtime has no Engine._compile; Mosaic's Claude client needs it. Check vendor/nsdeploy-runtime.");
+  }
   class MosaicEngine extends (Engine as new (opts: EngineOptions) => RuntimeEngine) {
     /** The running turn's shared budget (see MosaicAgent.stopTurn). */
     mosaicComposition: TurnBudget | null = null;
@@ -164,6 +176,18 @@ export function makeMosaicEngineClass(Engine: RuntimeModule["Engine"]): RuntimeM
       }
       if (args?.isTop && args.composition) this.mosaicComposition = args.composition;
       return super._makeCtx(args);
+    }
+    /**
+     * With the api.anthropic.com router, every network (the top one and each peer, which always runs
+     * on the visitor's router) gets a client that speaks Claude's Messages API, not the runtime's
+     * OpenAI-format LlmClient.
+     */
+    async _compile(...args: unknown[]) {
+      const compiled = await super._compile(...args);
+      if (isAnthropicRouter(compiled.llm.baseUrl)) {
+        compiled.llm = new ClaudeLlmClient({ apiKey: this.byokKey, trace: this.trace as never, baseUrl: compiled.llm.baseUrl });
+      }
+      return compiled;
     }
   }
   classes.set(Engine, MosaicEngine);
@@ -433,9 +457,14 @@ export class MosaicAgent {
    * Runs one turn and streams its public events. In manual mode it throws before anything is sent:
    * Mosaic's keyless runbook (entry/plan.ts) plans the steps instead.
    */
-  runTurn(text: string, slyData: Record<string, unknown> = {}): AsyncIterable<TurnEvent> {
+  runTurn(text: string, slyData: Record<string, unknown> = {}, interaction?: unknown): TurnStream {
     if (this.mode === "manual") throw new Error(NO_KEY_MESSAGE);
     this.stopping = false;
-    return this.engine.streamTurn(text, { slyData });
+    return this.engine.streamTurn(text, { slyData, ...(interaction ? { interaction } : {}) });
+  }
+
+  /** A new outcome is a new conversation: the runtime forgets the earlier turns. */
+  resetConversation(): void {
+    this.engine.resetHistory();
   }
 }

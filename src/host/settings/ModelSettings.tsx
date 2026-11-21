@@ -6,6 +6,7 @@ import { CpuIcon, InfoIcon, TrashIcon, WarningIcon, XIcon } from "@phosphor-icon
 import { useRef, useState, type FormEvent } from "react";
 import { DEFAULT_MODEL, OTARI_ROUTER } from "../agentic/network";
 import { NO_KEY_MESSAGE, routerHostOf } from "../agentic/engine";
+import { ROUTER_PRESETS, type RouterPreset } from "../agentic/routers";
 import { Banner, Button, Tag } from "../primitives";
 import { useAgentEngine } from "./engine-context";
 
@@ -51,10 +52,19 @@ function SettingsBody() {
   const [name, setName] = useState("");
   const [router, setRouter] = useState(OTARI_ROUTER);
   const [model, setModel] = useState(DEFAULT_MODEL);
+  const [preset, setPreset] = useState<RouterPreset>(ROUTER_PRESETS[0]!);
   const [problem, setProblem] = useState<string | null>(null);
   const [check, setCheck] = useState<{ state: "running" | "ok" | "error"; text: string } | null>(null);
   const selected = store?.profiles.find((p) => p.id === store.selectedId) ?? null;
   const routerHost = routerHostOf({ router: router.trim() });
+
+  const choose = (p: RouterPreset) => {
+    setPreset(p);
+    setRouter(p.router);
+    setModel(p.model);
+    setName(p.name);
+    setProblem(null);
+  };
 
   const save = (e: FormEvent) => {
     e.preventDefault();
@@ -162,6 +172,16 @@ function SettingsBody() {
 
       <form className="settings-form" onSubmit={save} autoComplete="off">
         <h3 className="label">Add a model</h3>
+        <div className="settings-presets" role="group" aria-label="Router">
+          {ROUTER_PRESETS.map((p) => (
+            <Button key={p.id} type="button" size="xs" variant={p.id === preset.id ? "primary" : "secondary"} aria-pressed={p.id === preset.id} data-preset={p.id} onClick={() => choose(p)}>
+              {p.label}
+            </Button>
+          ))}
+        </div>
+        <p className="settings-note" data-testid="preset-note">
+          {preset.note}
+        </p>
         <label className="field">
           <span>Router base URL</span>
           <input className="settings-input mono" value={router} onChange={(e) => setRouter(e.target.value)} spellCheck={false} inputMode="url" />
@@ -172,11 +192,11 @@ function SettingsBody() {
         </label>
         <label className="field">
           <span>Key</span>
-          <input ref={keyRef} className="settings-input mono" type="password" name="router-key" placeholder="otk_…" autoComplete="off" spellCheck={false} />
+          <input ref={keyRef} className="settings-input mono" type="password" name="router-key" placeholder={preset.keyHint} autoComplete="off" spellCheck={false} />
         </label>
         <label className="field">
           <span>Name (optional)</span>
-          <input className="settings-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Otari" />
+          <input className="settings-input" value={name} onChange={(e) => setName(e.target.value)} placeholder={preset.name} />
         </label>
         <p className="settings-note" data-testid="key-note">
           Your key is sent only to {routerHost}. Mosaic and the sites you connect never see it.

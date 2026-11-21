@@ -20,6 +20,10 @@ module.exports = {
     await panel.getByLabel("Name (optional)").fill(name);
     await panel.getByRole("button", { name: "Save and use" }).click();
   },
+  /** Pick a router preset (Otari, OpenAI, Claude, local agent); it fills the router, model and name. */
+  async preset(panel, id) {
+    await panel.locator(`[data-preset="${id}"]`).click();
+  },
   /** A saved profile row by its name. */
   profile: (panel, name) => panel.locator(`.profile[data-profile="${name}"]`),
   /** Wait until the named profile is the one in use. */
