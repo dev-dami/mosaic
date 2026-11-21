@@ -7,14 +7,20 @@ origin serves (src/roles.ts):
 | Role | Serves | Suggested project |
 |---|---|---|
 | `host` | The Mosaic workspace | `mosaic-host` |
-| `docs` | Pagewright (network `pagewright`) | `mosaic-docs` |
-| `releases` | Tagforge (`tagforge`) | `mosaic-releases` |
-| `announcer` | Loudhailer (`loudhailer`) | `mosaic-announcer` |
-| `newsletter` | Inkpost (`inkpost`), the site connected by typing its URL | `mosaic-newsletter` |
-| `videos` | Reelhouse (`reelhouse`) | `mosaic-videos` |
-| `issues` | Patchbay (`patchbay`) | `mosaic-issues` |
-| `agents` | Foreman (`foreman`) | `mosaic-agents` |
+| `docs` | Pagewright (network `pagewright`) | `mosaic-pagewright` |
+| `releases` | Tagforge (`tagforge`) | `mosaic-tagforge` |
+| `announcer` | Loudhailer (`loudhailer`) | `mosaic-loudhailer` |
+| `newsletter` | Inkpost (`inkpost`), the site connected by typing its URL | `mosaic-inkpost` |
+| `videos` | Reelhouse (`reelhouse`) | `mosaic-reelhouse` |
+| `issues` | Patchbay (`patchbay`) | `mosaic-patchbay` |
+| `agents` | Foreman (`foreman`) | `mosaic-foreman` |
 | `corkboard` | Corkboard, the forum with no manifest that Scout learns | `mosaic-corkboard` |
+
+The projects are named after the sites they serve. A role name such as `mosaic-docs` can already
+be taken on `vercel.app`.
+
+The live demo: host `https://mosaic-host.vercel.app`, sites `https://mosaic-<site>.vercel.app`, and
+Scout at `https://scout.164-68-108-90.sslip.io`.
 
 Scout does not run on Vercel: it drives Chromium and serves each learned site on a port of its own.
 It runs on a server behind Caddy (below).
@@ -39,7 +45,7 @@ MOSAIC_ROLE=docs NODE_ENV=production PORT=7901 bun server.ts
 ## Variables per role
 
 Set each in the project's Production environment. Origins are exact: scheme and host, no path, no
-trailing slash. Use the production alias (for example `https://mosaic-docs.vercel.app`), never a
+trailing slash. Use the production alias (for example `https://mosaic-pagewright.vercel.app`), never a
 per-deployment URL, which Deployment Protection hides behind a Vercel login.
 
 | Variable | host | 7 sites | corkboard | Meaning |
@@ -144,7 +150,37 @@ Then a browser pass on `$HOST`: connect Pagewright from the suggestions, connect
 its URL, run a read, approve one write in the site's popup, and check the badge still says
 "Mosaic unchanged".
 
-## Scout on a server
+## Scout on a server, in Podman
+
+This is how the live demo runs: Scout and Caddy as rootless-image Podman quadlets on a small server,
+512 MB of memory in total (Scout 448 MB, Caddy 64 MB, no swap) and a 2.5 GB disk image for their
+data. Every file is in `deploy/`.
+
+```bash
+# 1. A capped disk for the data: a 2.5 GB ext4 image mounted at /srv/mosaic.
+truncate -s 2500M /var/lib/mosaic-srv.img && mkfs.ext4 -q /var/lib/mosaic-srv.img
+cp deploy/srv-mosaic.mount /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now srv-mosaic.mount
+mkdir -p /srv/mosaic/scout /srv/mosaic/caddy /srv/mosaic/caddy-config && chown 1000:1000 /srv/mosaic/scout
+
+# 2. The Scout image (Bun, the app, headless Chromium), built from a clean export of the repo.
+git archive HEAD | (mkdir -p /tmp/ctx && tar -x -C /tmp/ctx)
+podman build -t localhost/mosaic-scout:latest -f deploy/scout.Containerfile /tmp/ctx
+
+# 3. Environments: /etc/mosaic/scout.env (from deploy/scout.env.example, SCOUT_DIR=/data, no
+#    CHROMIUM_PATH) and /etc/mosaic/caddy.env with SCOUT_DOMAIN=<scout domain> and CADDY_BIND=<server-ip>
+#    (bind the public IP when another service, such as tailscaled, holds 443 on another interface).
+cp deploy/Caddyfile /etc/mosaic/Caddyfile
+
+# 4. The quadlets: systemd generates mosaic-scout.service and mosaic-caddy.service.
+cp deploy/mosaic-scout.container deploy/mosaic-caddy.container /etc/containers/systemd/
+systemctl daemon-reload && systemctl start mosaic-scout mosaic-caddy
+podman stats --no-stream                     # memory use against the limits
+
+# 5. Check over HTTPS: 200 for the host origin, 403 for any other.
+curl -s -o /dev/null -w '%{http_code}\n' -H 'Origin: https://mosaic-host.vercel.app' https://scout.<scout domain>/templates
+```
+
+## Scout on a server, without containers
 
 Needs the owner's OK: installing Caddy and opening ports 80 and 443 are outward steps. Placeholders:
 `<server-ip>` and `<scout domain>` (for example `203-0-113-10.sslip.io`, which resolves to the IP

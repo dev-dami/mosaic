@@ -11,7 +11,7 @@ Mosaic is an entry for the Open Agentic Web Challenge. It follows the agentic-we
 
 ## Try it
 
-1. Open the live demo: `TODO(verify): host URL after the deploy.`
+1. Open the live demo: https://mosaic-host.vercel.app
 2. Click **AI model** in the top bar and pick a preset: **Otari** (the default), **OpenAI**,
    **Claude** (Anthropic's Messages API) or **Agent on this computer** (Claude Code or Codex through
    Mosaic Link, no API key). Your key goes only to that router. With no key, Mosaic runs in manual
