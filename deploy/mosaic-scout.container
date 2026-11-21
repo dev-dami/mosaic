@@ -1,0 +1,29 @@
+# Podman quadlet for a public Scout: copy to /etc/containers/systemd/, then
+# `systemctl daemon-reload && systemctl start mosaic-scout`. Memory: 448 MB here plus 64 MB for
+# Caddy (mosaic-caddy.container) = 512 MB, no swap. Disk: the image plus /srv/mosaic, a 2.5 GB
+# loop-mounted filesystem for templates and certificates (docs/deploy.md). Ports are published on
+# loopback only; Caddy is the only thing on 80/443.
+[Unit]
+Description=Mosaic Scout (learns sites with no manifest)
+After=network-online.target srv-mosaic.mount
+Requires=srv-mosaic.mount
+
+[Container]
+Image=localhost/mosaic-scout:latest
+ContainerName=mosaic-scout
+EnvironmentFile=/etc/mosaic/scout.env
+Environment=BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
+Volume=/srv/mosaic/scout:/data:Z
+PublishPort=127.0.0.1:4108:4108
+PublishPort=127.0.0.1:4110-4129:4110-4129
+ReadOnly=true
+NoNewPrivileges=true
+DropCapability=ALL
+PodmanArgs=--memory=448m --memory-swap=448m --shm-size=64m --pids-limit=512
+
+[Service]
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+# The disk cap for Mosaic's VPS containers: a 2.5 GB ext4 file mounted at /srv/mosaic. Create it once:
+#   fallocate -l 2560M /var/lib/mosaic-srv.img && mkfs.ext4 -q /var/lib/mosaic-srv.img
+# then copy this unit to /etc/systemd/system/ and `systemctl enable --now srv-mosaic.mount`.
+[Unit]
+Description=Mosaic container data (2.5 GB cap)
+
+[Mount]
+What=/var/lib/mosaic-srv.img
+Where=/srv/mosaic
+Type=ext4
+Options=loop,nodev,nosuid
+
+[Install]
+WantedBy=multi-user.target
