@@ -1,10 +1,17 @@
 <!doctype html>
+<!--
+  Action bridge, from the agentify-website skill template (templates/bridge/action-bridge.html).
+  A caller's nsdeploy runtime frames this page for reads and opens it in a popup for writes.
+  It reads agent-manifest.json in this folder, which names bridge-actions.js (providers/bridge-actions.ts).
+  Mosaic adds the site's approval sheet styles and a root for the sheet: a write is approved here,
+  on the site's own sheet. The server lets only Mosaic hosts frame this page and sets no COOP.
+-->
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Approval</title>
-    <link rel="stylesheet" href="../assets/fonts.css" />
+    <meta charset="utf-8">
+    <meta name="robots" content="noindex">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Action bridge</title>
     <style>
       /* The site's own approval sheet. Each site sets its scheme, accent and type in its bridge config,
          so the prompt reads as that site's page, never as the host's. The structure is shared: warm
@@ -136,7 +143,7 @@
       button.approve .label { position: relative; }
       /* The short pause before Approve works is visible: the button starts flat and grey, fills with the
          site's colour from the left, then rises onto its ledge when it can be pressed. The timing is
-         bridge.ts's (it sets and clears `disabled`); this only draws it. */
+         bridge-actions.ts's (it sets and clears `disabled`); this only draws it. */
       button.approve:disabled { cursor: wait; translate: 0 var(--depth); box-shadow: none; background: var(--card); color: var(--ink-2); border-color: var(--line-strong); }
       button.approve .fill { position: absolute; inset: 0; background: var(--accent-soft); border-right: 2px solid var(--accent); opacity: 0; transform-origin: left; transform: scaleX(0); }
       button.approve:disabled .fill { opacity: 1; animation: unlock 700ms linear forwards; }
@@ -165,9 +172,9 @@
         button.deny, button.approve { transition: none; }
       }
     </style>
+    <script type="module" src="../runtime/action-bridge.js"></script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="./bridge.ts"></script>
   </body>
 </html>

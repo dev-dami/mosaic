@@ -11,7 +11,7 @@ export const CLAUDE_MODEL = "claude-opus-5-5";
 const STEP = {
   type: "object",
   additionalProperties: false,
-  required: ["op", "selector", "value", "url", "field", "kind"],
+  required: ["op", "selector", "value", "url", "field", "kind", "columns"],
   properties: {
     op: { type: "string", enum: ["goto", "fill", "check", "click", "extract"] },
     selector: { type: "string" },
@@ -19,10 +19,12 @@ const STEP = {
     url: { type: "string" },
     field: { type: "string" },
     kind: { type: "string", enum: ["text", "list", "table", "url", ""] },
+    columns: { type: "array", items: { type: "string" } },
   },
 };
 
-const SKILLS_SCHEMA = {
+/** The structured output Claude writes: skills in the same flat shape the rules learner drafts. */
+export const SKILLS_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: ["skills"],
@@ -68,9 +70,10 @@ Script rules:
 - The first step is always goto with a path on this site. Write {{field}} for a value the person gives, for example /thread/{{thread_id}}.
 - Use only selectors from the snapshot. Never invent one.
 - click waits for the next page. extract reads into an output field: kind text (one element), list (each element matching the selector), table (rows of a table), or url (the page address; selector empty).
-- Unused step properties are empty strings.
+- For a table extract, columns lists the header cells of that table exactly as the snapshot gives them; each row comes back keyed by them. columns is an empty list for every other step.
+- Other unused step properties are empty strings.
 - side_effects is "write" when the skill changes anything on the site (posts, saves, sends, deletes); otherwise "read".
-- ids are lowercase words joined by hyphens. Field names are lowercase words joined by underscores.
+- ids are lowercase words joined by hyphens. Input field names and extract output fields are lowercase words joined by underscores.
 - For a field that comes from a path segment, set example to a value seen in the snapshot, so Scout can try the read.
 - Descriptions say in one sentence what the skill does on the site and, for writes, what it changes.`;
 

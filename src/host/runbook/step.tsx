@@ -78,12 +78,6 @@ export function Step({ origin, number }: { origin: string; number: number }) {
       </header>
       {lead && <p className="step-desc">{lead.cap.description}</p>}
 
-      {conn.status === "failed" && (
-        <Banner tone="danger" icon={<WarningIcon />} className="step-banner">
-          {name} refused Mosaic: {conn.failure}
-        </Banner>
-      )}
-
       {/* Context reads show in the site chip's details; each keeps its one element here. */}
       {context.map((r) => (
         <span key={r.key} hidden className="cap cap--context" data-capability={r.cap.id} data-origin={r.origin} id={capAnchor(r.key)} />
@@ -123,7 +117,10 @@ function ReadBlock({ r, showTitle }: { r: CapRef; showTitle: boolean }) {
   const [kept, setKept] = useState<string[]>(needing);
   const needKey = needing.join("|");
   useEffect(() => {
-    setKept((k) => [...new Set([...k, ...needing])].filter((key) => !model.bindingFor(r.key, key)));
+    setKept((k) => {
+      const next = [...new Set([...k, ...needing])].filter((key) => !model.bindingFor(r.key, key));
+      return next.length === k.length && next.every((key, i) => key === k[i]) ? k : next;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [needKey, model]);
   const doneAt = run.status === "done" ? run.at.getTime() : 0;

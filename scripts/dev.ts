@@ -7,10 +7,17 @@ const host = `http://localhost:${base}`;
 const names = ["docs", "releases", "announcer", "newsletter", "videos", "issues", "agents"];
 const sites = names.map((name, i) => ({ name, file: `providers/${name}.ts`, port: base + 101 + i }));
 const suggest = sites.filter((s) => s.name !== "newsletter").map((s) => `http://localhost:${s.port}`);
+// Each suggested site by the network name it publishes; the host's agent network links each one.
+// Inkpost stays unlinked too, so connecting it binds a spare slot at runtime.
+const slugs: Record<string, string> = {
+  docs: "pagewright", releases: "tagforge", announcer: "loudhailer", newsletter: "inkpost",
+  videos: "reelhouse", issues: "patchbay", agents: "foreman",
+};
+const siteOrigins = sites.filter((s) => s.name !== "newsletter").map((s) => `${slugs[s.name]}=http://localhost:${s.port}`).join(",");
 const scout = `http://localhost:${base + 108}`;
 const procs = [
   Bun.spawn(["bun", "src/host/server.ts"], {
-    env: { ...process.env, PORT: String(base), MOSAIC_SUGGEST: suggest.join(","), MOSAIC_AGENT: scout },
+    env: { ...process.env, PORT: String(base), MOSAIC_SUGGEST: suggest.join(","), MOSAIC_AGENT: scout, SITE_ORIGINS: siteOrigins },
     stdout: "inherit",
     stderr: "inherit",
   }),

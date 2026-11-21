@@ -1,6 +1,11 @@
 // The pure reducer for workspace state. Owner: foundation (shared).
 import { hueOfColor, siteHue } from "../hue";
-import type { Action, State, Trace, TraceStage } from "./types";
+import { applyTrace, applyTurnEvent, settleTurn, startTurn, stopTurn } from "../agentic/turn";
+import type { Action, ConnectStage, State, Trace, TraceStage } from "./types";
+
+/** Earlier turns kept on the page. The runtime keeps its own, shorter history (engine.js: 24 entries). */
+const MAX_THREAD = 20;
+const STAGES: ConnectStage[] = ["consent", "manifest", "network", "validate", "bridge", "build"];
 
 export const initialState: State = {
   host: null,
@@ -15,11 +20,16 @@ export const initialState: State = {
   bindings: {},
   receipts: [],
   confirming: null,
+  asking: null,
+  popupBlocked: false,
+  writing: null,
   sending: false,
   hues: {},
   fresh: [],
   hot: null,
   pulse: null,
+  turn: null,
+  thread: [],
 };
 
 /** Replace the last stage of the trace for `origin` (the one in progress) and append more. */
@@ -34,28 +44,29 @@ export function reducer(state: State, action: Action): State {
       return { ...state, host: action.info };
 
     case "connect/started":
-      return { ...state, connectError: null, trace: { origin: action.origin, stages: [{ stage: "fetch", state: "doing" }] } };
+      return { ...state, connectError: null, trace: { origin: action.origin, network: action.network, stages: [{ stage: "consent", state: "doing" }] } };
 
     case "connect/rejected":
       return { ...state, connectError: action.message };
 
-    case "connect/manifest-read": {
-      const { site } = action;
+    case "connect/stage":
+      return {
+        ...state,
+        trace: traceFor(state, action.origin, (t) => {
+          const i = STAGES.indexOf(action.stage);
+          return { ...t, ...action.patch, stages: [...STAGES.slice(0, i).map((stage) => ({ stage, state: "done" as const })), { stage: action.stage, state: "doing" }] };
+        }),
+      };
+
+    case "connect/choose":
       return {
         ...state,
         trace: traceFor(state, action.origin, (t) => ({
           ...t,
-          siteName: site.site.name,
-          capabilities: site.capabilities.length,
-          writes: site.capabilities.filter((c) => c.side_effects === "write").length,
-          stages: [
-            { stage: "fetch", state: "done" },
-            { stage: "verify", state: "done" },
-            { stage: "bridge", state: "doing" },
-          ],
+          choices: action.choices,
+          stages: settleLast(t.stages, { stage: "network", state: "failed", detail: `Publishes ${action.choices.length} networks: pick one` }),
         })),
       };
-    }
 
     case "connect/failed":
       return {
@@ -73,7 +84,7 @@ export function reducer(state: State, action: Action): State {
       const hue = state.hues[origin] ?? siteHue(origin, others, hueOfColor(action.site.site.theme_color));
       return {
         ...state,
-        conns: [...state.conns, { key: action.key, site: action.site, status: "connecting" }],
+        conns: [...state.conns.filter((c) => c.site.site.origin !== origin), { key: action.key, site: action.site, status: "connecting" }],
         hues: { ...state.hues, [origin]: hue },
         fresh: [...state.fresh.filter((o) => o !== origin), origin],
       };
@@ -82,15 +93,12 @@ export function reducer(state: State, action: Action): State {
     case "site/settled":
       return { ...state, fresh: state.fresh.filter((o) => o !== action.origin) };
 
-    case "site/bridge": {
-      const { origin, status, failure } = action;
+    case "site/ready": {
+      const { origin } = action;
       return {
         ...state,
-        conns: state.conns.map((c) => (c.site.site.origin === origin ? { ...c, status, failure } : c)),
-        trace: traceFor(state, origin, (t) => ({
-          ...t,
-          stages: settleLast(t.stages, { stage: "bridge", state: status === "ready" ? "done" : "failed", detail: failure }),
-        })),
+        conns: state.conns.map((c) => (c.site.site.origin === origin ? { ...c, status: "ready" } : c)),
+        trace: traceFor(state, origin, (t) => ({ ...t, stages: settleLast(t.stages, { stage: "bridge", state: "done" }) })),
       };
     }
 
@@ -141,18 +149,59 @@ export function reducer(state: State, action: Action): State {
       };
 
     case "run/failed":
-      return { ...state, runs: { ...state.runs, [action.cap]: { status: "error", message: action.message, denied: action.denied, at: action.at } } };
+      return {
+        ...state,
+        runs: { ...state.runs, [action.cap]: { status: "error", message: action.message, denied: action.denied, unknown: action.unknown, notStarted: action.notStarted, at: action.at } },
+      };
 
     case "receipt/added":
       return { ...state, receipts: [action.receipt, ...state.receipts].slice(0, 40) };
 
     case "approval/sheet":
-      return { ...state, confirming: action.origin };
+      return { ...state, confirming: action.origin, asking: action.origin ? null : state.asking };
+
+    case "approval/ask":
+      return { ...state, asking: action.origin, popupBlocked: false };
+
+    case "approval/blocked":
+      return { ...state, popupBlocked: true };
+
+    case "write/active":
+      return { ...state, writing: action.cap };
 
     case "publish/sending":
       return { ...state, sending: action.sending };
 
     case "ui/hot":
       return { ...state, hot: action.cap };
+
+    case "turn/started": {
+      const thread = action.followUp && state.turn ? [...state.thread, state.turn].slice(-MAX_THREAD) : [];
+      return { ...state, thread, turn: startTurn(action.outcome, action.interaction) };
+    }
+
+    case "turn/steered":
+      return state.turn?.status === "running" ? { ...state, turn: { ...state.turn, steers: [...state.turn.steers, action.text] } } : state;
+
+    case "turn/trace": {
+      if (!state.turn) return state;
+      const turn = applyTrace(state.turn, action.event);
+      return turn === state.turn ? state : { ...state, turn };
+    }
+
+    case "turn/event": {
+      if (!state.turn) return state;
+      const turn = applyTurnEvent(state.turn, action.event);
+      return turn === state.turn ? state : { ...state, turn };
+    }
+
+    case "turn/stopped":
+      return state.turn ? { ...state, turn: stopTurn(state.turn) } : state;
+
+    case "turn/settled":
+      return state.turn ? { ...state, turn: settleTurn(state.turn) } : state;
+
+    case "turn/failed":
+      return state.turn && state.turn.status === "running" ? { ...state, turn: { ...state.turn, status: "failed", error: action.message } } : state;
   }
 }

@@ -1,7 +1,6 @@
 // A demo site's own home page: what it offers and what has changed on it.
 // Area C "review" owns this file (the page people land on from a receipt link).
 // The e2e reads "No changes yet." and the capability id of each write from this page.
-import { MANIFEST_PATH } from "../src/protocol";
 import type { Activity, SiteDefinition, SiteLook } from "./site";
 
 export function escapeHtml(s: string): string {
@@ -63,7 +62,7 @@ export function renderHome(def: SiteDefinition, look: SiteLook, activity: Activi
   return new Response(
     `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(def.name)}</title>
-<link rel="mosaic-capabilities" href="${MANIFEST_PATH}">
+<link rel="agent-manifest" href="/agent-manifest.json">
 <style>
 :root{color-scheme:${dark ? "dark" : "light"};--accent:${accent};
 --bg:${dark ? "hsl(240 8% 9%)" : look.font === "rounded" ? "#fff8f4" : "hsl(75 14% 95%)"};--card:${dark ? "hsl(235 8% 14%)" : "#fff"};

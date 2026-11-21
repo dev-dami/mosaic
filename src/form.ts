@@ -21,7 +21,7 @@ function fieldFor(key: string, schema: JsonSchema, required: boolean): Field {
   }
   switch (schema.type) {
     case "string": {
-      if (schema.format === "date-time") return { ...base, kind: "datetime", initial: "" };
+      if (schema.format === "date-time" || schema["x-mosaic-widget"] === "datetime") return { ...base, kind: "datetime", initial: "" };
       const long = schema["x-mosaic-widget"] === "textarea" || (schema.maxLength ?? 0) > 200;
       return { ...base, kind: long ? "textarea" : "text", initial: String(schema.default ?? "") };
     }

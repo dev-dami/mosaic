@@ -2,12 +2,16 @@
 import type { CapRef } from "../doc";
 import type { Run, State } from "../state";
 
-export type WriteStatus = "idle" | "running" | "waiting" | "done" | "denied" | "failed";
+/**
+ * `unknown`: the site may have done it (its window or the site went away mid-action). Never offered
+ * again: the person checks the site. `not_started`: nothing was sent, so asking again is safe.
+ */
+export type WriteStatus = "idle" | "running" | "waiting" | "done" | "denied" | "failed" | "unknown" | "not_started";
 
 export function writeStatus(state: State, r: CapRef): WriteStatus {
   const run: Run = state.runs[r.key] ?? { status: "idle" };
-  if (run.status === "running") return state.confirming === r.origin ? "waiting" : "running";
-  if (run.status === "error") return run.denied ? "denied" : "failed";
+  if (run.status === "running") return state.confirming === r.origin || state.asking === r.origin ? "waiting" : "running";
+  if (run.status === "error") return run.denied ? "denied" : run.unknown ? "unknown" : run.notStarted ? "not_started" : "failed";
   return run.status;
 }
 

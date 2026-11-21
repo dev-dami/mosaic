@@ -18,6 +18,11 @@ export function ActivityLog() {
     <section className="activity" aria-label="Activity">
       <header className="activity-head">
         <h2 className="label">Activity</h2>
+        {state.turn?.model && (
+          <span className="act-model" data-testid="activity-model">
+            Model: {state.turn.model.name} at {state.turn.model.routerHost}
+          </span>
+        )}
         {state.receipts.length > SHOWN && (
           <button type="button" className="link-btn" onClick={() => setAll((v) => !v)}>
             {all ? "Show latest" : `Show all ${state.receipts.length}`}
@@ -49,9 +54,9 @@ export function ActivityLog() {
                   <span className="act-site-host">{hostOf(rc.origin)}</span>
                 </span>
               </td>
-              <td className="act-result">
+              <td className="act-result" title={rc.requestId ? `Request ${rc.requestId}` : undefined}>
                 <span className={`act-dot ${rc.outcome}`} aria-hidden="true" />
-                {rc.outcome === "done" ? (rc.write ? "Approved" : "Read") : rc.outcome === "denied" ? "Denied, nothing changed" : rc.detail}
+                {rc.outcome === "done" ? (rc.write ? "Published" : "Read") : rc.outcome === "denied" ? "Denied, nothing changed" : rc.detail}
               </td>
               <td className="act-time">
                 <time>{fmtTime(rc.at)}</time>

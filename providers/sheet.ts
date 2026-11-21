@@ -1,7 +1,7 @@
 // The site's own approval sheet: how it looks and reads. Plain DOM, runs on the site's origin
-// inside the bridge iframe. Area C "review" owns this file and providers/bridge.html.
-// What it must not decide: who may ask, and when Approve becomes clickable. providers/bridge.ts
-// owns both (sender origin checks, and the 700 ms Approve delay it applies to the button returned here).
+// in the nsdeploy action bridge's popup (providers/bridge-actions.ts, styles in bridge-page.html).
+// What it must not decide: who may ask, and when Approve becomes clickable. The caller owns both
+// (the runtime's callerOrigins check, and the 700 ms Approve delay applied to the button returned here).
 // Every value from the host is written with textContent, never as HTML.
 import { diffWordsWithSpace } from "diff";
 import { changedKeys, humanKey, plainText, showValue, type Shown } from "./sheet-format";

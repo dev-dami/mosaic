@@ -11,13 +11,15 @@ import { EntryEmpty, EntryOverlays, EntryTopbar, OutcomeHeader, SourcesRail } fr
 import { ActivityLog, ApprovalLayer, ReviewDock } from "./review";
 import { RunbookDocument } from "./runbook";
 import { applyRecipe, recipeFromHash } from "./recipe";
-import { MosaicProvider, useMosaic } from "./state";
+import { AgentLink, MosaicProvider, useMosaic } from "./state";
+import { AgentEngineProvider, ModelSettingsButton } from "./settings";
 
 function App() {
   return (
     <MosaicProvider>
       <IconContext.Provider value={{ weight: "bold", size: 18 }}>
         <TooltipProvider>
+          <AgentEngineProvider>
           <div className="app">
             <TopBar />
             <div className="layout">
@@ -32,26 +34,49 @@ function App() {
             <ApprovalLayer />
             <EntryOverlays />
             <RecipeLoader />
+            <AgentLink />
           </div>
+          </AgentEngineProvider>
         </TooltipProvider>
       </IconContext.Provider>
     </MosaicProvider>
   );
 }
 
-/** Opening a recipe link rebuilds its workspace once this Mosaic's config has loaded. */
+/**
+ * Opening a recipe link rebuilds its workspace once this Mosaic's config has loaded. A bad link, or
+ * a site the recipe could not rebuild here, is said plainly; each site still asks for consent.
+ */
 function RecipeLoader() {
   const { state, actions } = useMosaic();
   const started = useRef(false);
+  const [problems, setProblems] = useState<string[]>([]);
   useEffect(() => {
     if (started.current || !state.host) return;
-    const recipe = recipeFromHash();
-    if (!recipe) return;
+    const found = recipeFromHash();
+    if (!found) return;
     started.current = true;
     history.replaceState(null, "", location.pathname);
-    void applyRecipe(recipe, actions, state.host.agent);
+    if ("error" in found) return setProblems([found.error]);
+    void applyRecipe(found.recipe, actions, state.host.agent).then(setProblems);
   }, [state.host, actions]);
-  return null;
+  if (!problems.length) return null;
+  return (
+    <div
+      role="alert"
+      className="recipe-problem"
+      style={{ position: "fixed", top: 64, left: "50%", transform: "translateX(-50%)", zIndex: 50, width: "max-content", maxWidth: "min(560px, calc(100vw - 32px))", padding: "10px 12px", display: "flex", gap: 10, alignItems: "flex-start", background: "var(--danger-fill)", color: "var(--ink)", border: "1px solid var(--danger-line)", borderRadius: "var(--radius-lg)", boxShadow: "var(--elev-modal)" }}
+    >
+      <WarningIcon style={{ color: "var(--danger)", flex: "none", marginTop: 2 }} aria-hidden="true" />
+      <div style={{ flex: 1 }}>
+        <strong>Recipe</strong>
+        {problems.map((p) => (
+          <div key={p}>{p}</div>
+        ))}
+      </div>
+      <Button onClick={() => setProblems([])}>Dismiss</Button>
+    </div>
+  );
 }
 
 function TopBar() {
@@ -69,6 +94,7 @@ function TopBar() {
       </nav>
       <div className="top-right">
         <EntryTopbar />
+        <ModelSettingsButton />
         <ThemeSwitch />
         <BuildMark />
       </div>

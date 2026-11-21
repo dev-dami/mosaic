@@ -1,11 +1,16 @@
-import { serveSite, type SiteDefinition } from "./site";
+import { InputError, serveSite, type SiteDefinition } from "./site";
 
 // Foreman: a fictional service that runs coding agents on your own servers. "Plan fix" reads an
 // issue and writes the agent's task, a branch, a summary of the change and a reply for whoever
-// reported it; "Send agent to fix" starts the agent on one of your servers.
+// reported it; "Send agent to fix" starts the agent on one of your servers; "Check run" says how it
+// went. A run takes RUN_SECONDS: before that it is running, after it the tests pass and its pull
+// request is merged.
 
 type Server = { name: string; region: string; hardware: string; status: "idle" | "busy"; agents: number };
-type Run = { id: string; server: string; branch: string; task: string; started: string };
+type Run = { id: string; server: string; branch: string; task: string; started: string; pull: number };
+
+/** How long a fictional agent run takes. Short, so a demo can check on it a moment later. */
+export const RUN_SECONDS = 20;
 
 const servers: Server[] = [
   { name: "gpu-01", region: "home lab", hardware: "1x L40S, 64 GB", status: "idle", agents: 0 },
@@ -14,8 +19,10 @@ const servers: Server[] = [
 ];
 const SERVER_NAMES = servers.map((s) => s.name);
 const runs: Run[] = [];
-let runNumber = 411;
-let pullNumber = 43;
+const runNumberBase = 411;
+const pullNumberBase = 43;
+let runNumber = runNumberBase;
+let pullNumber = pullNumberBase;
 
 /** What a known kind of bug usually needs. Matched on the issue text; the last entry always matches. */
 const PLAYBOOK: { when: RegExp; cause: string; why: string; change: string; result: string; test: string; files: string[] }[] = [
@@ -26,7 +33,7 @@ const PLAYBOOK: { when: RegExp; cause: string; why: string; change: string; resu
     result: "The Connect button now opens the site's sheet on the first click in Safari.",
     change: "Open the site's sheet inside the click handler, before the first `await`, and show a retry hint if the browser blocks it.",
     test: "Add a WebKit run of the connect flow to the browser test.",
-    files: ["src/host/entry/palette.tsx", "src/host/bridge-client.ts", "e2e/mosaic.e2e.cjs"],
+    files: ["src/host/entry/palette.tsx", "src/host/state/store.tsx", "e2e/mosaic.e2e.cjs"],
   },
   {
     when: /narrow|mobile|overlap|layout/i,
@@ -70,6 +77,23 @@ function readIssue(issue: string): { title: string; ref: string; milestone?: str
   };
 }
 
+/**
+ * A run's state from its age. A run this server does not know (another instance started it, or the
+ * server restarted) counts as finished: its id came from Send agent to fix, and every run passes.
+ */
+export function checkRun(runId: string, now = Date.now()) {
+  const id = runId.trim();
+  if (!/^run-\d+$/.test(id)) throw new InputError(`"${runId}" is not a run id. Send agent to fix returns one, such as run-412.`);
+  const run = runs.find((r) => r.id === id);
+  const elapsed = run ? (now - Date.parse(run.started)) / 1000 : Infinity;
+  const pull = run ? `#${run.pull}` : `#${Number(id.slice(4)) - runNumberBase + pullNumberBase}`;
+  if (elapsed < RUN_SECONDS) {
+    const done = Math.max(1, Math.floor((elapsed / RUN_SECONDS) * 12));
+    return { run_id: id, status: `running on ${run!.server}`, tests: `${done} of 12 passed so far`, pull_request: `${pull} (draft until tests pass)`, merged: false, branch: run!.branch };
+  }
+  return { run_id: id, status: "done", tests: "12 of 12 passed", pull_request: `${pull} merged into main`, merged: true, branch: run?.branch ?? "" };
+}
+
 export const agentsSite: SiteDefinition = {
   name: "Foreman",
   description: "A fictional agent runner. It plans fixes and starts coding agents on your own servers.",
@@ -82,7 +106,24 @@ export const agentsSite: SiteDefinition = {
       description: "List your servers and what is running on them.",
       side_effects: "read",
       input_schema: { type: "object", properties: {} },
-      output_schema: { type: "object", properties: { servers: { type: "array" } } },
+      output_schema: {
+        type: "object",
+        properties: {
+          servers: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                server: { type: "string" },
+                where: { type: "string" },
+                hardware: { type: "string" },
+                status: { type: "string" },
+                agents: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
       run: () => ({ servers: servers.map((s) => ({ server: s.name, where: s.region, hardware: s.hardware, status: s.status, agents: s.agents })) }),
     },
     {
@@ -129,7 +170,7 @@ export const agentsSite: SiteDefinition = {
     {
       id: "send-agent",
       title: "Send agent to fix",
-      description: "Start a coding agent on one of your servers. It works on a branch and opens a pull request.",
+      description: "Start a coding agent on one of your servers. It works on a branch and opens a pull request. Check run says when it is done.",
       side_effects: "write",
       input_schema: {
         type: "object",
@@ -155,7 +196,7 @@ export const agentsSite: SiteDefinition = {
         runNumber += 1;
         pullNumber += 1;
         const id = `run-${runNumber}`;
-        runs.unshift({ id, server: input.server, branch: input.branch, task: input.task, started: new Date().toISOString() });
+        runs.unshift({ id, server: input.server, branch: input.branch, task: input.task, started: new Date().toISOString(), pull: pullNumber });
         const server = servers.find((s) => s.name === input.server);
         if (server) {
           server.agents += 1;
@@ -170,6 +211,29 @@ export const agentsSite: SiteDefinition = {
           log_url: `/runs/${id}/log`,
         };
       },
+    },
+    {
+      id: "check-run",
+      title: "Check run",
+      description: "How a coding agent's run is going: its tests, and whether its pull request is merged. Changes nothing.",
+      side_effects: "read",
+      input_schema: {
+        type: "object",
+        required: ["run_id"],
+        properties: { run_id: { type: "string", title: "Run", description: "The run_id Send agent to fix returned, such as run-412." } },
+      },
+      output_schema: {
+        type: "object",
+        properties: {
+          run_id: { type: "string" },
+          status: { type: "string" },
+          tests: { type: "string" },
+          pull_request: { type: "string" },
+          merged: { type: "boolean" },
+          branch: { type: "string" },
+        },
+      },
+      run: (input: { run_id: string }) => checkRun(input.run_id),
     },
   ],
 };

@@ -67,7 +67,18 @@ export const videosSite: SiteDefinition = {
       description: "List the channel's videos, newest first.",
       side_effects: "read",
       input_schema: { type: "object", properties: {} },
-      output_schema: { type: "object", properties: { videos: { type: "array" } } },
+      output_schema: {
+        type: "object",
+        properties: {
+          videos: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { title: { type: "string" }, published: { type: "string" }, views: { type: "integer" }, comments: { type: "integer" } },
+            },
+          },
+        },
+      },
       run: () => ({
         videos: videos.map((v) => ({ title: v.title, published: v.published, views: v.views, comments: v.comments.length })),
       }),
@@ -82,7 +93,19 @@ export const videosSite: SiteDefinition = {
         required: ["video"],
         properties: { video: { type: "string", title: "Video", enum: VIDEO_TITLES, default: VIDEO_TITLES[0] } },
       },
-      output_schema: { type: "object", properties: { video: { type: "string" }, comments: { type: "array" } } },
+      output_schema: {
+        type: "object",
+        properties: {
+          video: { type: "string" },
+          comments: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { author: { type: "string" }, comment: { type: "string" }, likes: { type: "integer" }, posted: { type: "string" } },
+            },
+          },
+        },
+      },
       run: (input: { video: string }) => {
         const v = videoNamed(input.video);
         return { video: v.title, comments: v.comments.map((c) => ({ author: c.author, comment: c.text, likes: c.likes, posted: c.posted })) };

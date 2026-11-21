@@ -1,10 +1,15 @@
 // A learned skill: one thing a site's pages can do, written as a short browser script. Scout writes
 // skills by looking at a site (agent/learn-*.ts), saves them in an adapter file, and runs them here.
-// An adapter is a template for a site that publishes no manifest. It holds plain capabilities plus
-// the steps that perform each one, so any Scout can load it, and a site owner can publish the
-// capabilities part as their own manifest.
+// An adapter (mosaic-adapter/0, Scout's own save format) is a template for a site that publishes
+// no agent files. It holds the skills and the steps that perform each one, so any Scout can load
+// it. adapterSite turns it into a SiteDefinition, and serveSite publishes the MVP profile 0.3 files
+// from that: agent-manifest.json with x_mosaic.agent, the Neuro SAN network, links.json and the
+// nsdeploy action bridge. Every schema here stays inside the runtime's checkSchema subset
+// (vendor/nsdeploy-runtime/actions.js): objects list their properties, arrays their items.
 import type { Browser, Page } from "playwright-core";
+import type { SiteDefinition } from "../providers/site";
 import type { Capability, JsonSchema } from "../src/protocol";
+import { fencedPage } from "./targets";
 
 export type StepOp = "goto" | "fill" | "check" | "click" | "extract";
 export type ExtractKind = "text" | "list" | "table" | "url";
@@ -17,8 +22,10 @@ export type ExtractKind = "text" | "list" | "table" | "url";
  * - check: tick `selector` when `value` renders truthy, untick it otherwise.
  * - click: press `selector` and wait for the page that follows.
  * - extract: read `selector` into output `field` as text, a list of texts, a table, or the page URL.
+ *   For a table, `columns` names its header cells; each row is then an object with those keys.
+ *   With no columns, each row is a list of cell texts.
  */
-export type Step = { op: StepOp; selector: string; value: string; url: string; field: string; kind: ExtractKind | "" };
+export type Step = { op: StepOp; selector: string; value: string; url: string; field: string; kind: ExtractKind | ""; columns: string[] };
 
 export type SkillField = {
   name: string;
@@ -48,7 +55,7 @@ export type Adapter = {
   skills: Skill[];
 };
 
-export const step = (s: Partial<Step> & { op: StepOp }): Step => ({ selector: "", value: "", url: "", field: "", kind: "", ...s });
+export const step = (s: Partial<Step> & { op: StepOp }): Step => ({ selector: "", value: "", url: "", field: "", kind: "", columns: [], ...s });
 
 export const slug = (s: string, max = 40) =>
   s
@@ -59,6 +66,27 @@ export const slug = (s: string, max = 40) =>
     .replace(/-+$/, "") || "skill";
 
 const fieldKey = (s: string) => slug(s).replace(/-/g, "_");
+
+/** A table header cell as a row key: "Last reply" -> "last_reply"; a blank header -> "col_<n>". */
+export const columnKey = (header: string, i: number) =>
+  header
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 60) || `col_${i + 1}`;
+
+/** A table step's row keys, unique and in order. Adapters saved before columns existed have none. */
+function rowKeys(s: Step): string[] {
+  return [...new Set((s.columns ?? []).map(columnKey))];
+}
+
+function extractSchema(s: Step): JsonSchema {
+  if (s.kind === "list") return { type: "array", items: { type: "string" } };
+  if (s.kind !== "table") return { type: "string" };
+  const keys = rowKeys(s);
+  if (!keys.length) return { type: "array", items: { type: "array", items: { type: "string" } } };
+  return { type: "array", items: { type: "object", required: keys, properties: Object.fromEntries(keys.map((k) => [k, { type: "string" }])) } };
+}
 
 /** The capability a skill offers, in the manifest's own terms. */
 export function toCapability(skill: Skill): Capability {
@@ -72,8 +100,7 @@ export function toCapability(skill: Skill): Capability {
   const outputs: Record<string, JsonSchema> = {};
   for (const s of skill.steps) {
     if (s.op !== "extract" || !s.field) continue;
-    outputs[s.field] =
-      s.kind === "list" ? { type: "array", items: { type: "string" } } : s.kind === "table" ? { type: "array", items: { type: "object" } } : { type: "string" };
+    outputs[s.field] = extractSchema(s);
   }
   return {
     id: skill.id,
@@ -95,15 +122,26 @@ function render(template: string, input: Record<string, unknown>, encode = false
 
 const STEP_TIMEOUT_MS = 6_000;
 
-/** Read an HTML table into rows keyed by its header cells. */
-async function readTable(page: Page, selector: string): Promise<Record<string, string>[]> {
-  return page.locator(selector).first().evaluate((table) => {
-    const t = table as HTMLTableElement;
-    const head = [...t.querySelectorAll("thead th, tr:first-child th")].map((th) => th.textContent?.trim() ?? "");
-    const keys = head.map((h, i) => h.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || `col_${i + 1}`);
-    const rows = [...t.querySelectorAll("tbody tr, tr")].filter((tr) => tr.querySelector("td"));
-    return rows.map((tr) => Object.fromEntries([...tr.querySelectorAll("td")].map((td, i) => [keys[i] ?? `col_${i + 1}`, td.textContent?.trim() ?? ""])));
-  });
+/**
+ * Read an HTML table. With columns, each row is an object with exactly those keys (a missing cell is
+ * ""), so it matches the output schema; a table that has none of the columns fails the step.
+ * Without columns, each row is its list of cell texts.
+ */
+async function readTable(page: Page, s: Step): Promise<Record<string, string>[] | string[][]> {
+  const { head, rows } = await page
+    .locator(s.selector)
+    .first()
+    .evaluate((table) => {
+      const text = (el: Element) => (el.textContent ?? "").replace(/\s+/g, " ").trim();
+      const head = [...table.querySelectorAll("thead th, tr:first-child th")].map(text);
+      const rows = [...table.querySelectorAll("tbody tr, tr")].filter((tr) => tr.querySelector("td")).map((tr) => [...tr.querySelectorAll("td")].map(text));
+      return { head, rows };
+    });
+  const keys = rowKeys(s);
+  if (!keys.length) return rows;
+  const index = new Map(head.map((h, i) => [columnKey(h, i), i]));
+  if (!keys.some((k) => index.has(k))) throw new Error(`the table has none of the columns ${keys.join(", ")} (it has ${head.join(", ") || "no header"})`);
+  return rows.map((cells) => Object.fromEntries(keys.map((k) => [k, cells[index.get(k) ?? -1] ?? ""])));
 }
 
 /**
@@ -112,8 +150,22 @@ async function readTable(page: Page, selector: string): Promise<Record<string, s
  */
 export async function runSkill(browser: Browser, origin: string, skill: Skill, rawInput: unknown): Promise<Record<string, unknown>> {
   const input = (rawInput && typeof rawInput === "object" ? rawInput : {}) as Record<string, unknown>;
-  const context = await browser.newContext();
-  const page = await context.newPage();
+  const gotoUrl = (s: Step) => {
+    const url = new URL(render(s.url, input, true), origin);
+    if (url.origin !== origin) throw new Error(`goto ${url.origin} is outside ${origin}`);
+    return url;
+  };
+  // Refuse a run whose gotos leave the target before opening a browser context for it.
+  for (const [i, s] of skill.steps.entries()) {
+    if (s.op !== "goto") continue;
+    try {
+      gotoUrl(s);
+    } catch (e) {
+      throw new Error(`step ${i + 1} (goto ${s.url}) failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  // The fence fails any request to another origin before it is sent, redirect hops included.
+  const { context, page } = await fencedPage(browser, origin);
   page.setDefaultTimeout(STEP_TIMEOUT_MS);
   const output: Record<string, unknown> = {};
   const stayHome = () => {
@@ -123,12 +175,9 @@ export async function runSkill(browser: Browser, origin: string, skill: Skill, r
     for (const [i, s] of skill.steps.entries()) {
       try {
         switch (s.op) {
-          case "goto": {
-            const url = new URL(render(s.url, input, true), origin);
-            if (url.origin !== origin) throw new Error(`goto ${url.origin} is outside ${origin}`);
-            await page.goto(url.href, { waitUntil: "load" });
+          case "goto":
+            await page.goto(gotoUrl(s).href, { waitUntil: "load" });
             break;
-          }
           case "fill":
             await page.fill(s.selector, render(s.value, input));
             break;
@@ -143,7 +192,7 @@ export async function runSkill(browser: Browser, origin: string, skill: Skill, r
             break;
           case "extract":
             if (s.kind === "url") output[s.field] = page.url();
-            else if (s.kind === "table") output[s.field] = await readTable(page, s.selector);
+            else if (s.kind === "table") output[s.field] = await readTable(page, s);
             else if (s.kind === "list") output[s.field] = (await page.locator(s.selector).allInnerTexts()).map((t) => t.replace(/\s+/g, " ").trim());
             else output[s.field] = (await page.locator(s.selector).first().innerText()).trim();
             break;
@@ -171,8 +220,49 @@ export function skillProblem(skill: Skill): string | null {
     for (const m of `${s.url} ${s.value}`.matchAll(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi)) if (!names.has(m[1]!)) return `step uses unknown field ${m[1]}`;
     if (s.op !== "goto" && s.op !== "extract" && !s.selector) return `${s.op} step has no selector`;
     if (s.op === "extract" && (!s.field || !s.kind || (s.kind !== "url" && !s.selector))) return "extract step needs a field, a kind and a selector";
+    if (s.op === "extract" && !/^[a-z][a-z0-9_]*$/.test(s.field)) return `bad output field ${s.field}`;
+    if (s.columns !== undefined && (!Array.isArray(s.columns) || s.columns.some((c) => typeof c !== "string"))) return "columns must be a list of header names";
   }
   return null;
+}
+
+/**
+ * Run each read that can run with the values Scout saw while learning. A read that fails is
+ * dropped; a read that needs a value Scout never saw is kept unverified. Writes are never run here.
+ */
+export async function verifySkills(browser: Browser, origin: string, skills: Skill[], log: (m: string) => void = console.log): Promise<Skill[]> {
+  const kept: Skill[] = [];
+  for (const skill of skills) {
+    if (skillProblem(skill)) continue;
+    if (skill.side_effects === "write" || skill.fields.some((f) => f.required && !f.example)) {
+      kept.push({ ...skill, verified: false });
+      continue;
+    }
+    try {
+      await runSkill(browser, origin, skill, Object.fromEntries(skill.fields.map((f) => [f.name, f.example])));
+      kept.push({ ...skill, verified: true });
+    } catch (e) {
+      log(`Scout dropped "${skill.title}": ${e instanceof Error ? e.message : e}`);
+    }
+  }
+  return kept;
+}
+
+/**
+ * A template as a site. serveSite publishes its agent files from this, and x_mosaic.agent in the
+ * manifest says that Scout, not the target, performs every action. The bridge config carries the
+ * same agent, so a write's approval sheet says Scout will do it on a site that did not publish it.
+ */
+export function adapterSite(adapter: Adapter, browserFor: () => Promise<Browser>): SiteDefinition {
+  const host = new URL(adapter.target.origin).host;
+  return {
+    name: adapter.target.name,
+    description: `Learned by Scout from ${host}. ${host} did not publish these; Scout performs them in a browser.`,
+    port: 0,
+    look: { scheme: "light", accent: adapter.target.theme_color ?? "#5b6472", font: "mono" },
+    agent: { name: "Scout", drives: adapter.target.origin, learned_by: adapter.learned.by },
+    capabilities: adapter.skills.map((skill) => ({ ...toCapability(skill), run: async (input: unknown) => runSkill(await browserFor(), adapter.target.origin, skill, input) })),
+  };
 }
 
 export { fieldKey };
