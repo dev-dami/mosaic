@@ -12,7 +12,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { tinykeys } from "tinykeys";
 import { connectTarget } from "../agentic/catalog";
 import { learnerName, scout, type Template } from "../agent";
-import { recipeLink } from "../recipe";
+import { recipeCuts, recipeLink } from "../recipe";
 import { capAnchor, hostOf, monogram, type CapRef } from "../doc";
 import { Button, Kbd, Monogram, Origin, Tag, useHueStyle } from "../primitives";
 import { openReview } from "../review";
@@ -94,6 +94,8 @@ export function Palette() {
   const templates = useTemplates(open ? state.host?.agent : undefined);
   const pendingTemplates = templates.filter((t) => !model.connFor(t.origin));
   const [copied, setCopied] = useState(false);
+  // A recipe over its limits is cut to fit; say so here, before and after copying, never silently.
+  const cuts = recipeCuts(state);
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
@@ -241,7 +243,9 @@ export function Palette() {
                           </span>
                           <span className="item-main">
                             <span className="item-title">{copied ? "Recipe link copied" : "Copy recipe link"}</span>
-                            <span className="item-sub">The outcome and its sites in one link, without keys, inputs or results. Opening it builds this workspace again, anywhere.</span>
+                            <span className="item-sub">
+                              {cuts.length ? cuts.join(" ") : "The outcome and its sites in one link, without keys, inputs or results. Opening it builds this workspace again, anywhere."}
+                            </span>
                           </span>
                         </Command.Item>
                       )}

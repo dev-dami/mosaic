@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { applyRecipe, buildRecipe, decodeRecipe, encodeRecipe, MAX_NETWORKS, MAX_RECIPE_BYTES, parseRecipe, recipeFromHash, recipeLink, type Recipe } from "../src/host/recipe";
+import { applyRecipe, buildRecipe, decodeRecipe, encodeRecipe, MAX_NETWORKS, MAX_RECIPE_BYTES, parseRecipe, recipeCuts, recipeFromHash, recipeLink, type Recipe } from "../src/host/recipe";
 
 const adapter = {
   mosaic: "adapter/0",
@@ -55,6 +55,19 @@ describe("recipe/1", () => {
     const r = await buildRecipe(state, undefined, client as never);
     expect(r.adapters).toBeUndefined();
     expect(r.networks).toHaveLength(2);
+  });
+
+  test("a workspace over the limits is cut, and the cut is said, not silent", async () => {
+    expect(recipeCuts(state)).toEqual([]);
+    const many = { title: "y".repeat(2500), conns: Array.from({ length: MAX_NETWORKS + 3 }, (_, i) => conn(`http://localhost:${5000 + i}/n${i}`)) } as never;
+    const r = await buildRecipe(many, undefined, client as never);
+    expect(r.networks).toHaveLength(MAX_NETWORKS);
+    expect(r.outcome).toHaveLength(2000);
+    expect(() => parseRecipe(r)).not.toThrow();
+    expect(recipeCuts(many)).toEqual([
+      "The link holds the first 20 sites; 3 more (localhost:5020, localhost:5021, localhost:5022) are left out.",
+      "The link holds the first 2,000 characters of the outcome; 500 more are left out.",
+    ]);
   });
 
   test("malformed links are refused with a plain message", () => {
