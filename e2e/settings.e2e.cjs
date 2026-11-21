@@ -115,7 +115,7 @@ async function settingsChecks({ browser, procs, base, sitePort, screenshot }) {
     assert.ok(chats.length >= 1, "the router got the chat call");
     assert.ok(chats.every((r) => r.auth === `Bearer ${KEY}`), "Authorization carries the selected key");
     assert.ok(seen.filter((r) => r.path !== "/v1/chat/completions").every((r) => !r.auth), "only the chat call carries a key");
-    assert.deepEqual(chats[0].tools, ["pagewright", "composer"], "unbound spare slots are hidden from the model");
+    assert.deepEqual(chats[0].tools, ["pagewright", "composer", "render_cruse"], "unbound spare slots are hidden from the model");
 
     // 15. A second profile, select the first again, then delete both: back to manual mode.
     await settings.saveProfile(panel, { router: routerUrl, model: "mock-model-2", key: KEY2, name: "Second" });
@@ -157,7 +157,7 @@ async function settingsChecks({ browser, procs, base, sitePort, screenshot }) {
       assert.equal(c.body.model, "claude-opus-5-5");
       assert.equal(c.body.stream, true);
     }
-    assert.deepEqual(messageCalls[0].body.tools.map((t) => t.name), ["pagewright", "composer"]);
+    assert.deepEqual(messageCalls[0].body.tools.map((t) => t.name), ["pagewright", "composer", "render_cruse"]);
     await assertKeyHidden(page, KEY3, "after the Claude turn");
     await settings.remove(panel, "Claude");
     await settings.mode(panel, "manual").waitFor();

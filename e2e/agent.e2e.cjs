@@ -12,7 +12,10 @@
 //   27. Stop during a peer's step: "Stopping…" while the runtime drains, no new turn and no manual
 //       write meanwhile, and no approval window opens for the stopped turn;
 //   28. a write approved before Stop keeps Published and its receipt;
-//   29. a router error shows as a plain error in the runbook.
+//   29. a router error shows as a plain error in the runbook;
+//   30. the conversation goes on under the outcome: "Continue" after an approval, a reply from the
+//       box under the thread (the model gets the history), a choice the agent returned (CRUSE) whose
+//       click is the next message, then locks and shows what was picked.
 // Called from mosaic.e2e.cjs. Set C9_SCREENSHOT to save a turn in progress.
 const { spawn } = require("node:child_process");
 const http = require("node:http");
@@ -26,6 +29,16 @@ const review = require("./areas/review.cjs");
 const KEY = "otk_agent789";
 const FINAL = "Lumen v1.0 is launched: notes drafted, docs previewed, release published.";
 const DRAFT = "Lumen v1.0 is the first public release, with a new plugin API.";
+const PICKED_ANSWER = "The announcement waits for Loudhailer.";
+const CHOICE = {
+  id: "where",
+  kind: "choice",
+  title: "Where should the announcement go?",
+  options: [
+    { title: "Loudhailer", subtitle: "A public post", value: "loudhailer" },
+    { title: "Nowhere yet", value: "none" },
+  ],
+};
 
 // Text streams one character per chunk, in one write, as real models stream tokens: a burst of
 // deltas inside one task once passed React's nested-update limit and killed the turn.
@@ -69,7 +82,7 @@ function scriptedRouter(port, { holdTagforgeMs }) {
       const lastUser = messages.map((m) => m.role).lastIndexOf("user");
       const user = String(messages[lastUser]?.content ?? "");
       const results = messages.slice(lastUser + 1).filter((m) => m.role === "tool").length;
-      seen.push({ tools, auth: req.headers.authorization || "" });
+      seen.push({ tools, auth: req.headers.authorization || "", user, all: messages.map((m) => String(m.content ?? "")).join("\n") });
       const model = parsed.model;
       if (tools.includes("composer")) {
         if (/break/.test(user)) {
@@ -77,6 +90,9 @@ function scriptedRouter(port, { holdTagforgeMs }) {
           res.setHeader("content-type", "application/json");
           return res.end(JSON.stringify({ error: { message: "The mock router refused this request." } }));
         }
+        // The widget answer comes back as the next message, with the runtime's "CRUSE interaction".
+        if (/CRUSE interaction/.test(user)) return sse(res, model, { content: `Noted. ${PICKED_ANSWER}` });
+        if (/show choices/.test(user)) return sse(res, model, results === 0 ? call("render_cruse", { presentation: { version: 1, components: [CHOICE] } }) : { content: "Where should the announcement go?" });
         if (/loudhailer/.test(user)) return sse(res, model, results === 0 ? call("loudhailer", { request: "Announce Lumen v1.0" }) : { content: "Loudhailer was not used." });
         if (/linger/.test(user) && results === 3) await sleep(5000);
         const hold = /hold/.test(user) ? " (hold)" : "";
@@ -231,6 +247,27 @@ async function agentChecks({ browser, procs, base, screenshot }) {
     assert.ok(home.includes("publish-release"), "the approved write reached the site");
     assert.ok(seen.length >= 7 && seen.every((r) => r.auth === `Bearer ${KEY}`), "every model call carried the key to the router");
     assert.deepEqual(contactDialogs, [], "sites the person connected are not asked about again in a turn");
+
+    // 30. The conversation goes on under the outcome, not in the title.
+    await agent.nextStep(page, "Continue").waitFor(); // the write approved in this turn
+    const title = await page.locator("#outcome").inputValue();
+    await agent.reply(page, "Now announce it, show choices");
+    await agent.youSaid(page).getByText("Now announce it, show choices").waitFor();
+    await agent.turn(page).locator(".agent-summary").getByText("Where should the announcement go?").waitFor();
+    assert.equal(await agent.turns(page).count(), 2, "the follow-up is a second turn under the first");
+    assert.equal(await page.locator("#outcome").inputValue(), title, "the outcome title is unchanged");
+    const followUp = seen.find((r) => r.user === "Now announce it, show choices");
+    assert.ok(followUp && followUp.all.includes(FINAL), "the follow-up turn carries the conversation so far");
+    const choice = agent.widget(page, "where");
+    await choice.getByRole("button", { name: /Loudhailer/ }).click();
+    await agent.youSaid(page).getByText("I'll go with: Loudhailer").waitFor();
+    await agent.turn(page).locator(".agent-summary").getByText(PICKED_ANSWER).waitFor();
+    const answer = seen.find((r) => /CRUSE interaction/.test(r.user));
+    assert.match(answer.user, /"componentId":"where"/);
+    assert.match(answer.user, /"value":"loudhailer"/);
+    assert.equal(await choice.getByRole("button", { name: /Loudhailer/ }).getAttribute("aria-pressed"), "true", "the earlier widget shows what was picked");
+    assert.equal(await choice.getByRole("button", { name: /Nowhere yet/ }).getAttribute("aria-disabled"), "true", "and takes no second answer");
+    assert.equal(await agent.turns(page).count(), 3);
 
     // 26. A linked site the person never connected still asks first. Declined: a visible problem, nothing sent.
     await agent.setOutcome(page, "Tell loudhailer about Lumen v1.0");

@@ -46,6 +46,9 @@ export interface TraceEvent {
   [field: string]: unknown;
 }
 
+/** Engine.streamTurn's stream: its events, and steer(text) while the turn runs (false once it closed). */
+export type TurnStream = AsyncIterable<TurnEvent> & { steer?: (text: string) => boolean };
+
 /** One public event of Engine.streamTurn (execution-stream.js). */
 export interface TurnEvent {
   type: string;
@@ -54,7 +57,7 @@ export interface TurnEvent {
   parentId: string | null;
   delta?: string;
   error?: string;
-  result?: { text: string; turnId?: string };
+  result?: { text: string; turnId?: string; presentation?: unknown };
   visibility?: "user" | "developer";
   [field: string]: unknown;
 }
@@ -85,7 +88,9 @@ export interface RuntimeEngine {
   requestConsent(info: ConsentRequest): Promise<"allow" | "decline">;
   resolveRemote(ref: string, chain: string[], parentSpan: string | null): Promise<{ network: { name: string }; base: string }>;
   runTurn(text: string, opts: { slyData?: Record<string, unknown> }): Promise<{ text: string }>;
-  streamTurn(text: string, opts?: { slyData?: Record<string, unknown> }): AsyncIterable<TurnEvent>;
+  streamTurn(text: string, opts?: { slyData?: Record<string, unknown>; interaction?: unknown }): TurnStream;
+  /** Forget the conversation: the next turn starts with no history (engine.js resetHistory). */
+  resetHistory(): void;
   _makeCtx(args: unknown): unknown;
   /** Compiles one network and makes its model client (engine.js). MosaicEngine swaps the client for Claude. */
   _compile(...args: unknown[]): Promise<{ llm: { baseUrl: string } }>;
@@ -452,9 +457,14 @@ export class MosaicAgent {
    * Runs one turn and streams its public events. In manual mode it throws before anything is sent:
    * Mosaic's keyless runbook (entry/plan.ts) plans the steps instead.
    */
-  runTurn(text: string, slyData: Record<string, unknown> = {}): AsyncIterable<TurnEvent> {
+  runTurn(text: string, slyData: Record<string, unknown> = {}, interaction?: unknown): TurnStream {
     if (this.mode === "manual") throw new Error(NO_KEY_MESSAGE);
     this.stopping = false;
-    return this.engine.streamTurn(text, { slyData });
+    return this.engine.streamTurn(text, { slyData, ...(interaction ? { interaction } : {}) });
+  }
+
+  /** A new outcome is a new conversation: the runtime forgets the earlier turns. */
+  resetConversation(): void {
+    this.engine.resetHistory();
   }
 }

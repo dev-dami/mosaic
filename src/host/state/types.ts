@@ -4,7 +4,7 @@
 import type { FormValues } from "../../form";
 import type { Site } from "../agentic/catalog";
 import type { TraceEvent, TurnEvent } from "../agentic/engine";
-import type { AgentTurn } from "../agentic/turn";
+import type { AgentTurn, TurnInteraction } from "../agentic/turn";
 import type { Binding, CapKey } from "../doc";
 
 export type ConnStatus = "connecting" | "ready";
@@ -105,6 +105,8 @@ export type State = {
   pulse: { cap: CapKey; at: number } | null;
   /** The latest agent turn (model mode): Mosaic's own network running the outcome. */
   turn: AgentTurn | null;
+  /** The earlier turns of this conversation, oldest first. A new outcome clears them. */
+  thread: AgentTurn[];
 };
 
 export type Action =
@@ -135,7 +137,10 @@ export type Action =
   | { type: "write/active"; cap: CapKey | null }
   | { type: "publish/sending"; sending: boolean }
   | { type: "ui/hot"; cap: CapKey | null }
-  | { type: "turn/started"; outcome: string }
+  /** followUp: the turn continues the conversation, so the current turn joins the thread. */
+  | { type: "turn/started"; outcome: string; followUp?: boolean; interaction?: TurnInteraction }
+  /** The person added a line to the running turn. */
+  | { type: "turn/steered"; text: string }
   | { type: "turn/trace"; event: TraceEvent }
   | { type: "turn/event"; event: TurnEvent }
   | { type: "turn/stopped" }
