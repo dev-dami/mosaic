@@ -8,6 +8,12 @@
 # gets the hostname below that names its port. Keep 4108-4129 closed in the firewall; only 80 and
 # 443 face the internet. Matching Scout settings: deploy/scout.env.example.
 
+# CADDY_BIND: the address to listen on (default: all). Set it to the public IP when something else,
+# such as Tailscale, already holds 443 on another interface.
+{
+	default_bind {$CADDY_BIND:0.0.0.0}
+}
+
 scout.{$SCOUT_DOMAIN} {
 	reverse_proxy 127.0.0.1:4108
 }
