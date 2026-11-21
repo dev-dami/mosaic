@@ -18,6 +18,24 @@ const EVIL_PORT = BASE + 666;
 const procs = [];
 let browser;
 
+// Stop every child server however this process ends: a failed check, an uncaught error, Ctrl C or
+// SIGTERM. Children are stopped by their own PIDs (never by name), so a dev server beside us lives.
+function stopChildren() {
+  for (const p of procs) if (p.exitCode === null && p.signalCode === null) p.kill();
+}
+process.on("exit", stopChildren);
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => {
+    stopChildren();
+    process.exit(130);
+  });
+}
+process.on("uncaughtException", (e) => {
+  console.error(e);
+  stopChildren();
+  process.exit(1);
+});
+
 function start(file, port, env = {}) {
   const p = spawn("bun", [file], { env: { ...process.env, PORT: String(port), MOSAIC_HOSTS: HOST, NODE_ENV: "production", ...env }, stdio: ["ignore", "inherit", "inherit"] });
   procs.push(p);
@@ -248,7 +266,10 @@ async function main() {
   //        connected sites, shown as Mosaic's runbook; writes still wait for the site's own sheet;
   //        Stop and runtime errors are visible; no key keeps the manual plan (e2e/agent.e2e.cjs).
   await require("./agent.e2e.cjs").agentChecks({ browser, procs, base: BASE, screenshot: process.env.C9_SCREENSHOT });
-  console.log("e2e: all 30 checks passed");
+  // 31-35. MVP §6 in the browser: a declined contact and the four stops of check 7 (invalid
+  //        network, cycle, over budget, denied origin) are visible runbook rows (e2e/interop.e2e.cjs).
+  await require("./interop.e2e.cjs").interopChecks({ browser, procs, base: BASE });
+  console.log("e2e: all 35 checks passed");
 }
 
 main()
@@ -257,6 +278,9 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
-    await browser?.close();
-    procs.forEach((p) => p.kill());
+    try {
+      await browser?.close();
+    } finally {
+      stopChildren();
+    }
   });
