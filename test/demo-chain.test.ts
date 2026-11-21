@@ -45,9 +45,10 @@ describe("demo chain", () => {
     expect(parseOutcome(OUTCOME).project).toBe("Mosaic");
   });
 
-  test("the outcome keeps every step and orders the sites as the story goes", () => {
+  test("the outcome keeps every step of the chain and orders the sites as the story goes", () => {
     const plan = planWorkspace({ outcome: OUTCOME, refs, siteOrder: sites.map(originOf) });
-    expect(plan.hidden.size).toBe(0);
+    // Check run feeds no later step, so manual mode leaves it out; the agent still has it.
+    expect([...plan.hidden]).toEqual([capKey(originOf(agentsSite), "check-run")]);
     expect(plan.siteOrder).toEqual(sites.map(originOf));
   });
 
