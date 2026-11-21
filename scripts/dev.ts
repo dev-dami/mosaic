@@ -25,9 +25,12 @@ const procs = [
   Bun.spawn(["bun", "providers/corkboard.ts"], { env: { ...process.env, PORT: String(base + 109) }, stdout: "inherit", stderr: "inherit" }),
   Bun.spawn(["bun", "agent/scout.ts"], { env: { ...process.env, PORT: String(base + 108), MOSAIC_HOSTS: host }, stdout: "inherit", stderr: "inherit" }),
 ];
-process.on("SIGINT", () => {
-  for (const p of procs) p.kill();
-  process.exit(0);
-});
+// Ctrl C or a SIGTERM from a supervisor stops every server this started, by its own PID.
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => {
+    for (const p of procs) p.kill();
+    process.exit(0);
+  });
+}
 await Promise.all(procs.map((p) => p.exited));
 export {};

@@ -102,7 +102,8 @@ export function parseRecipe(json: unknown): Recipe {
   return recipe;
 }
 
-/** The recipe from the connected sites. Only the outcome, network URLs and Scout's own templates. */
+/** The recipe from the connected sites. Only the outcome, network URLs and Scout's own templates.
+ *  A workspace over the limits is cut to fit; recipeCuts says what was left out, to tell the person. */
 export async function buildRecipe(state: Pick<State, "title" | "conns">, agent?: string, client: ScoutClient = scout): Promise<Recipe> {
   const networks = state.conns.map((c) => c.site.url).slice(0, MAX_NETWORKS);
   const learned = state.conns.filter((c) => c.site.site.agent && networks.includes(c.site.url));
@@ -115,6 +116,19 @@ export async function buildRecipe(state: Pick<State, "title" | "conns">, agent?:
     }
   }
   return { mosaic: "recipe/1", outcome: state.title.slice(0, MAX_OUTCOME), networks, ...(Object.keys(adapters).length ? { adapters } : {}) };
+}
+
+/** What a recipe of this workspace would leave out, as plain sentences; empty when it holds everything. */
+export function recipeCuts(state: Pick<State, "title" | "conns">): string[] {
+  const cuts: string[] = [];
+  const over = state.conns.slice(MAX_NETWORKS);
+  if (over.length) {
+    const hosts = over.map((c) => new URL(c.site.url).host).join(", ");
+    cuts.push(`The link holds the first ${MAX_NETWORKS} sites; ${over.length} more (${hosts}) ${over.length === 1 ? "is" : "are"} left out.`);
+  }
+  const extra = state.title.length - MAX_OUTCOME;
+  if (extra > 0) cuts.push(`The link holds the first ${MAX_OUTCOME.toLocaleString("en-US")} characters of the outcome; ${extra.toLocaleString("en-US")} more ${extra === 1 ? "is" : "are"} left out.`);
+  return cuts;
 }
 
 export async function recipeLink(state: Pick<State, "title" | "conns">, agent?: string, base = location.origin, client: ScoutClient = scout): Promise<string> {
